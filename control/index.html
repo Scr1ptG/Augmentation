@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Контрольная по аугментации</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F7F8F5; --surface:#FFFFFF; --ink:#16202A; --muted:#5A6572; --line:#D5DAD6;
+  --accent:#2346D8; --accent-ink:#FFFFFF; --accent-soft:#E0E6FC;
+  --amber:#9A6400; --amber-soft:#F7EACB; --ok:#1C7A50; --ok-soft:#D8EFE3;
+  --code-bg:#17202B; --code-ink:#DCE3EA; --hl-com:#7F8C99; --hl-kw:#93A9FF; --hl-str:#E8C66F;
+  --display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;
+    --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+    --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850; --amber:#F0B43A; --amber-soft:#3A2D10; --ok:#47BA86; --ok-soft:#133528; --code-bg:#0C1117;}
+}
+:root[data-theme="dark"]{color-scheme:dark;
+  --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+  --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850; --amber:#F0B43A; --amber-soft:#3A2D10; --ok:#47BA86; --ok-soft:#133528; --code-bg:#0C1117;}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:40px 80px;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em;font-weight:600}
+h1{font-size:clamp(28px,4.4vw,44px);line-height:1.1}
+h2{font-size:clamp(21px,2.6vw,26px);line-height:1.2}
+h3{font-size:17px;line-height:1.3}
+p{margin:0}
+.eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.eyebrow::before{content:"";width:11px;height:11px;flex:none;background:conic-gradient(var(--accent) 0 25%,transparent 0 50%,var(--accent) 0 75%,transparent 0)}
+.muted{color:var(--muted)}
+.small{font-size:14.5px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);padding:.05em .35em;border-radius:4px}
+section{display:flex;flex-direction:column;gap:18px}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-variant-numeric:tabular-nums}
+.chip b{color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+ol.steps,ul.list{margin:0;padding-left:1.25em;display:grid;gap:6px}
+.rule{border-left:3px solid var(--amber);background:var(--amber-soft);padding:12px 16px;border-radius:0 10px 10px 0}
+
+/* picker */
+.picker{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px 28px;align-items:start}
+.num{display:flex;flex-direction:column;gap:6px}
+.num label{font-size:14px;color:var(--muted)}
+.num input{width:120px;font-family:var(--display);font-size:34px;font-weight:600;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-variant-numeric:tabular-nums}
+.num input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mine{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+@media (max-width:620px){.picker{grid-template-columns:minmax(0,1fr)}}
+
+.var{display:flex;flex-direction:column;gap:10px}
+.var .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.var .id{font-family:var(--mono);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.var .check{font-size:14.5px;padding:9px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ink)}
+.var .check b{color:var(--ok);font-weight:600}
+.var ol{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:15px}
+.mine .var{border-width:2px;border-color:var(--accent)}
+
+details{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+summary{cursor:pointer;padding:14px 20px;font-weight:600;list-style-position:inside}
+details[open] summary{border-bottom:1px solid var(--line)}
+.all{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;padding:18px}
+.all .var{background:var(--paper)}
+
+/* reference */
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55}
+pre,pre *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+pre .c{color:var(--hl-com);font-style:italic}
+pre .k{color:var(--hl-kw)}
+pre .s{color:var(--hl-str)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td:first-child{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.rub td:last-child{font-family:var(--mono);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);font-size:14px;padding:10px 16px;border-radius:8px;z-index:10}
+</style>
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:16px">
+  <p class="eyebrow">Machine Learning · контрольная точка</p>
+  <h1>Контрольная работа по аугментации изображений</h1>
+  <div class="chips">
+    <span class="chip">максимум <b>7 баллов</b></span>
+    <span class="chip">на всё <b>1 ч 15 мин</b></span>
+    <span class="chip">задание 1 · <b>3 балла</b></span>
+    <span class="chip">задание 2 · <b>4 балла</b></span>
+    <span class="chip">отдельный ноутбук Colab на каждое задание</span>
+  </div>
+  <div class="rule small">Работа выполняется только в аудитории во время пары. В ответ на каждый вопрос прикрепите ссылку на свой ноутбук Colab. Проверьте, что ссылка открывается: «Настройки доступа» → «Все, у кого есть ссылка» → «Читатель».</div>
+</header>
+
+<section aria-labelledby="h-var">
+  <div><p class="eyebrow">Шаг 0</p><h2 id="h-var">Ваш вариант</h2></div>
+  <div class="picker">
+    <div class="num">
+      <label for="n">Номер в журнале</label>
+      <input id="n" type="number" min="1" max="99" value="1" inputmode="numeric">
+    </div>
+    <div class="mine" id="mine"></div>
+  </div>
+  <p class="small muted">У соседей по журналу разные сочетания вариантов. Преподаватель может выдать номер варианта и напрямую.</p>
+</section>
+
+<section aria-labelledby="h-common">
+  <div><p class="eyebrow">Шаг 1 · в обоих ноутбуках</p><h2 id="h-common">Общая часть</h2></div>
+  <div class="card">
+    <ol class="steps">
+      <li>Скачайте из интернета цветное <b>неквадратное</b> изображение в формате JPG. Загрузите его на свой Google-диск или загрузите с компьютера через <code>files.upload()</code>.</li>
+      <li>Подключите Google-диск и откройте изображение средствами Pillow.</li>
+      <li>Приведите изображение к размеру <b>400 × 300</b>, используя только <code>resize</code> и <code>crop</code>. Пропорции объектов не должны исказиться.</li>
+      <li>Выведите <code>img.size</code> и покажите картинку до и после.</li>
+      <li>Выполните индивидуальную часть своего варианта.</li>
+    </ol>
+  </div>
+</section>
+
+<section aria-labelledby="h-ref">
+  <div><p class="eyebrow">Опора</p><h2 id="h-ref">Что может пригодиться</h2></div>
+  <p class="muted" style="max-width:62ch">Здесь только инструменты и вопросы, готовых решений нет. Код с этой страницы не копируется.</p>
+
+  <div class="g2">
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <h3>Как получить 400 × 300 без искажений</h3>
+      <p class="small">400 × 300 — это соотношение 4 : 3. Если сразу сделать <code>resize((400, 300))</code>, объекты растянутся или сплющатся. Ответьте себе на вопросы по порядку:</p>
+      <ol class="steps small">
+        <li>Сравните <code>w / h</code> вашей картинки с <code>4 / 3</code>. Что у неё «лишнее»: ширина или высота?</li>
+        <li>Каким должен быть размер после <code>resize</code>, чтобы одна сторона стала ровно нужной, а другая — не меньше нужной?</li>
+        <li>Где у <code>crop</code> левый верхний угол, чтобы вырезать центр?</li>
+        <li>Проверьте код на горизонтальном и на вертикальном фото. Оба должны дать ровно (400, 300).</li>
+      </ol>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <h3>Colab: подключение диска и загрузка</h3>
+<pre><span class="k">from</span> google.colab <span class="k">import</span> drive
+drive.mount(<span class="s">'/content/drive'</span>)
+<span class="c"># файлы диска лежат в /content/drive/MyDrive/...</span>
+
+<span class="k">from</span> google.colab <span class="k">import</span> files
+uploaded = files.upload()   <span class="c"># словарь {имя файла: байты}</span>
+<span class="c"># после загрузки файл лежит в текущей папке под своим именем</span>
+
+<span class="c"># показать картинку в ячейке</span>
+display(img)</pre>
+    </div>
+  </div>
+
+  <div class="card tablewrap">
+    <h3 style="margin-bottom:10px">Pillow: функции и их параметры</h3>
+    <table>
+      <tr><th>Вызов</th><th>Что делает и на что обратить внимание</th></tr>
+      <tr><td>Image.open(path)</td><td>открывает файл. Режим смотрите в <code>im.mode</code>, размер в <code>im.size</code> — это (ширина, высота)</td></tr>
+      <tr><td>im.convert(mode)</td><td>"RGB", "RGBA" (с прозрачностью), "L" (оттенки серого)</td></tr>
+      <tr><td>im.resize((w, h), resample)</td><td>новый размер, сначала ширина. Возвращает новую картинку, исходная не меняется</td></tr>
+      <tr><td>im.crop((l, t, r, b))</td><td>прямоугольник: левый, верхний, правый, нижний край. Правый и нижний не включаются</td></tr>
+      <tr><td>im.rotate(angle, …)</td><td>параметры <code>expand</code>, <code>fillcolor</code>, <code>resample</code>, <code>center</code>. Знак угла проверьте сами</td></tr>
+      <tr><td>im.transpose(method)</td><td><code>Image.Transpose.FLIP_LEFT_RIGHT</code>, <code>FLIP_TOP_BOTTOM</code>, <code>ROTATE_90</code>, <code>ROTATE_180</code>, <code>ROTATE_270</code></td></tr>
+      <tr><td>Image.new(mode, (w, h), color)</td><td>пустой холст заданного цвета, в том числе прозрачный для RGBA</td></tr>
+      <tr><td>im.paste(src, (x, y), mask)</td><td>вставляет на месте (меняет im). Маска — картинка "L" или "RGBA"; её значение 0 означает «не вставлять»</td></tr>
+      <tr><td>Image.blend(a, b, alpha)</td><td>смешивание: при alpha = 0 получается a, при alpha = 1 — b. Размеры и режимы должны совпадать</td></tr>
+      <tr><td>im.split(), Image.merge(mode, bands)</td><td>разложить на каналы и собрать обратно</td></tr>
+      <tr><td>im.filter(ImageFilter.GaussianBlur(r))</td><td>размытие радиусом r</td></tr>
+      <tr><td>ImageDraw.Draw(im)</td><td>у объекта есть <code>.rectangle</code>, <code>.ellipse</code>, <code>.line</code>, <code>.text</code>, параметры <code>fill</code>, <code>outline</code>, <code>width</code></td></tr>
+      <tr><td>im.getbbox()</td><td>рамка ненулевой области. Для объекта RGBA вызывайте на альфа-канале: <code>im.getchannel("A")</code></td></tr>
+      <tr><td>im.transform(size, Image.Transform.AFFINE, (a, b, c, d, e, f))</td><td>пиксель (x, y) результата берётся из точки (a·x + b·y + c, d·x + e·y + f) исходника. Обратите внимание: это обратное отображение</td></tr>
+    </table>
+  </div>
+
+  <div class="g2">
+    <div class="card tablewrap">
+      <h3 style="margin-bottom:10px">NumPy ↔ Pillow</h3>
+      <table>
+        <tr><td>np.array(im)</td><td>массив формы (H, W, C), тип <code>uint8</code>. Сначала высота!</td></tr>
+        <tr><td>Image.fromarray(a)</td><td>обратно в картинку. Нужен <code>uint8</code>: приведите через <code>np.clip</code> и <code>.astype</code></td></tr>
+        <tr><td>a[y1:y2, x1:x2]</td><td>срез: сначала строки, потом столбцы</td></tr>
+        <tr><td>a[:, ::-1]</td><td>обратный порядок по оси. Какая ось здесь развёрнута?</td></tr>
+        <tr><td>a.mean(axis=…)</td><td>среднее по выбранным осям, например средний цвет</td></tr>
+        <tr><td>np.array_equal(a, b)</td><td>точное сравнение; для «почти равно» — <code>np.abs(a.astype(int) - b).max()</code></td></tr>
+        <tr><td>np.random.default_rng(seed)</td><td><code>.integers</code>, <code>.uniform</code>, <code>.normal</code>, <code>.random</code>. Один seed — один результат</td></tr>
+      </table>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <h3>Как показать много картинок сразу</h3>
+      <p class="small">Во многих вариантах нужна сетка результатов. Два способа, выберите любой:</p>
+      <ul class="list small">
+        <li>Холст <code>Image.new</code> размером (столбцы × ширина ячейки, строки × высота ячейки) и <code>paste</code> каждой картинки в свою ячейку. Строку и столбец для номера i дают <code>//</code> и <code>%</code>.</li>
+        <li><code>matplotlib</code>: <code>plt.subplots(rows, cols)</code>, затем <code>ax.imshow</code> и <code>ax.axis("off")</code> в цикле.</li>
+      </ul>
+      <p class="small"><b>Каждое преобразование оформляйте функцией</b> с параметрами, а не кодом в одну кучу. Функцию проще проверить и переиспользовать во втором задании.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-rub">
+  <div><p class="eyebrow">Оценивание</p><h2 id="h-rub">Критерии</h2></div>
+  <div class="g2">
+    <div class="card tablewrap">
+      <h3 style="margin-bottom:8px">Задание 1 · 3 балла</h3>
+      <table class="rub">
+        <tr><td style="font-family:var(--body);white-space:normal">Общая часть: изображение загружено, ровно 400 × 300 без искажений, только resize и crop</td><td>1</td></tr>
+        <tr><td style="font-family:var(--body);white-space:normal">Индивидуальное преобразование работает, результат показан в ноутбуке</td><td>1</td></tr>
+        <tr><td style="font-family:var(--body);white-space:normal">Преобразование оформлено функцией, «Проверка» из варианта выполнена кодом</td><td>1</td></tr>
+      </table>
+    </div>
+    <div class="card tablewrap">
+      <h3 style="margin-bottom:8px">Задание 2 · 4 балла</h3>
+      <table class="rub">
+        <tr><td style="font-family:var(--body);white-space:normal">Общая часть, как в задании 1</td><td>1</td></tr>
+        <tr><td style="font-family:var(--body);white-space:normal">Функции преобразований написаны и принимают параметры</td><td>1</td></tr>
+        <tr><td style="font-family:var(--body);white-space:normal">Набор результатов сгенерирован и показан (сетка, подписи, таблица)</td><td>1</td></tr>
+        <tr><td style="font-family:var(--body);white-space:normal">«Проверка» из варианта выполнена кодом: assert, print или сравнение</td><td>1</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="small muted">Баллы снижаются, если код не запускается сверху вниз («Среда выполнения» → «Выполнить все») или результат нельзя увидеть без повторного запуска.</p>
+</section>
+
+<section aria-labelledby="h-all">
+  <div><p class="eyebrow">Для преподавателя и для справки</p><h2 id="h-all">Все варианты</h2></div>
+  <details><summary>Задание 1 · 15 вариантов</summary><div class="all" id="all1"></div></details>
+  <details><summary>Задание 2 · 15 вариантов</summary><div class="all" id="all2"></div></details>
+</section>
+
+</div>
+
+<script>
+(function(){
+/* [название, [шаги], проверка] — всё применяется к картинке 400 × 300 из общей части */
+const T1=[
+ ['Обмен четвертей',['Разрежьте кадр на четыре части 200 × 150.','Соберите новый кадр 400 × 300, в котором части поменялись по диагонали: левая верхняя ↔ правая нижняя, правая верхняя ↔ левая нижняя.','Используйте только crop, Image.new и paste.'],'двойное применение функции возвращает исходную картинку (np.array_equal).'],
+ ['Зеркальная симметрия',['Левая половина кадра остаётся, правая заменяется зеркальной копией левой.','Затем так же: верхняя половина остаётся, нижняя — её отражение сверху вниз.'],'результат совпадает со своим горизонтальным и со своим вертикальным отражением.'],
+ ['Лента поворотов',['Сделайте 5 копий, повёрнутых на −20°, −10°, 0°, 10°, 20°. Размер кадра не меняется.','Пустые углы залейте средним цветом изображения, а не чёрным.','Уменьшите каждую копию до 160 × 120 и склейте в одну горизонтальную ленту.'],'размер ленты 800 × 120; выведите цвет углового пикселя второй копии и сравните со средним цветом.'],
+ ['Циклический сдвиг',['Сдвиньте кадр на 1/3 ширины вправо и на 1/4 высоты вверх.','Всё, что ушло за край, должно появиться с противоположной стороны.','Нельзя np.roll: только crop и paste.'],'результат совпадает с np.roll по обеим осям. Это единственное место, где np.roll разрешён.'],
+ ['Сетка 3 × 3',['Строки сетки — масштаб 0.8, 1.0, 1.25 (от центра, размер кадра сохраняется, при уменьшении поля чёрные).','Столбцы — без отражения, отражение по горизонтали, отражение по вертикали.','Каждую ячейку уменьшите до 120 × 90, подпишите параметры через ImageDraw.text.'],'итоговый размер 360 × 270; до нанесения подписей ячейка «масштаб 1.0, без отражения» совпадает с исходником, уменьшенным до 120 × 90.'],
+ ['Уголки',['Сделайте уменьшенную копию 100 × 75.','Вставьте 4 копии в углы исходного кадра с отступом 10 px от краёв.','По часовой стрелке от левого верхнего угла: копия как есть, отражённая по горизонтали, повёрнутая на 180°, отражённая по вертикали.'],'пиксель результата (10, 10) равен пикселю (0, 0) уменьшенной копии. Какому пикселю уменьшенной копии равен пиксель (389, 289)? Сначала ответьте в комментарии, потом проверьте кодом.'],
+ ['Полосы',['Разрежьте кадр на 10 вертикальных полос шириной 40 px.','Каждую вторую полосу (2-ю, 4-ю, …) отразите сверху вниз, остальные оставьте.'],'двойное применение функции возвращает исходник; первая полоса результата совпадает с исходной.'],
+ ['Поворот без углов',['Поверните кадр на 25° без увеличения холста, заливка — чистый пурпурный (255, 0, 255).','Затем увеличьте результат от центра в k раз с сохранением размера 400 × 300.','Подберите минимальное k с шагом 0.05, при котором в кадре нет пурпурных пикселей (отклонение по каждому каналу меньше 40).'],'выведите найденное k и число пурпурных пикселей при k и при k − 0.05.'],
+ ['Плитка',['Уменьшите кадр до 100 × 75.','Замостите холст 400 × 300 шестнадцатью копиями в шахматном порядке: на «белых» клетках копия как есть, на «чёрных» — отражённая по горизонтали.'],'посчитайте кодом, сколько клеток совпало с неотражённой копией (должно быть 8).'],
+ ['Паспарту',['Итоговый размер 400 × 300. По краю — рамка 20 px цвета, равного среднему цвету изображения.','Внутрь рамки вставьте уменьшенную картинку без искажения пропорций, по центру. Оставшиеся поля тоже цвета рамки.'],'выведите размер вложенной картинки и объясните в комментарии, как он посчитан; пиксель (0, 0) равен среднему цвету.'],
+ ['Непересекающиеся кропы',['С seed, равным номеру варианта, выбирайте случайные прямоугольники 200 × 150 внутри кадра.','Оставьте 5 штук так, чтобы IoU любых двух был не больше 0.3 (иначе выбирайте заново). IoU посчитайте своей функцией.','Увеличьте каждый кроп до 400 × 300 и покажите.'],'выведите координаты 5 прямоугольников и матрицу IoU 5 × 5.'],
+ ['Сдвиг с отражением краёв',['Сдвиньте кадр на 60 px вправо и на 40 px вниз.','Пустые полосы заполните не цветом, а зеркальным отражением края картинки.'],'столбец x = 59 результата совпадает со столбцом x = 60, строка y = 39 совпадает со строкой y = 40.'],
+ ['Каналы',['В левой половине кадра поменяйте местами каналы R и B.','В правой половине обнулите канал G.','По центру проведите белую вертикальную линию шириной 4 px. Размер не меняется.'],'для любого пикселя левой половины (не на линии) исходный (r, g, b) стал (b, g, r); проверьте на 100 случайных точках.'],
+ ['Калейдоскоп',['Возьмите левую верхнюю четверть 200 × 150.','Соберите из неё кадр 400 × 300 из четырёх копий так, чтобы на обеих линиях стыка картинка продолжалась зеркально.'],'результат совпадает со своим горизонтальным и со своим вертикальным отражением.'],
+ ['Шторка',['Разрежьте кадр на 10 горизонтальных полос высотой 30 px.','Полосу номер i (с нуля) циклически сдвиньте вправо на 10 · i px.'],'полоса 0 не изменилась; функция обратного сдвига возвращает исходник.']
+];
+const T2=[
+ ['Вырезанный объект',['Постройте маску-эллипс по центру кадра (ImageDraw.ellipse на картинке режима "L") и вырежьте RGBA-объект.','Сгенерируйте кодом 12 разных фонов 400 × 300 (градиенты или однотонные).','Вставьте объект на каждый фон в случайное место со случайным масштабом 0.4–0.8, нарисуйте рамку объекта.','Сетка 4 × 3.'],'рамка на каждом кадре касается эллипса со всех четырёх сторон (посчитана через getbbox альфа-канала).'],
+ ['Воспроизводимая аугментация',['Функция augment(img, seed) → (картинка, словарь параметров): отражение с вероятностью 0.5, поворот ±15°, масштаб 0.9–1.1.','Сгенерируйте 20 картинок с seed 0…19, покажите сеткой 5 × 4.','Выведите таблицу параметров (pandas DataFrame).'],'assert: одинаковый seed даёт одинаковый результат, разные seed — разные картинки.'],
+ ['Cutout',['Функция закрашивает 3 случайных прямоугольника со сторонами 10–20 % от стороны кадра средним цветом изображения.','Прямоугольники не должны пересекаться: напишите функцию проверки и перевыбирайте при пересечении.','12 вариантов, сетка.'],'для каждого варианта выведите долю закрашенной площади, посчитанную по координатам и по пикселям. Они должны совпасть.'],
+ ['CutMix',['Второе изображение — ваше же, повёрнутое на 180°.','Функция cutmix вставляет в первое изображение прямоугольник случайного размера и положения, взятый из того же места второго.','8 примеров, сетка.'],'для каждого примера λ (доля площади первой картинки) по координатам совпадает с λ, посчитанной сравнением пикселей.'],
+ ['MixUp своими руками',['Смешайте картинку с её горизонтальным отражением при α = 0, 0.25, 0.5, 0.75, 1 своей формулой на NumPy, без Image.blend.','Покажите 5 результатов в ряд.'],'максимальная разница с Image.blend не больше 1 для каждого α; постройте график средней яркости от α.'],
+ ['Рамка едет вместе с картинкой',['Задайте вручную рамку объекта на своём фото (x1, y1, x2, y2) и нарисуйте её.','Напишите функции, которые одновременно преобразуют картинку и рамку: отражение по горизонтали, сдвиг, масштаб от центра.','Сделайте 6 случайных комбинаций, на каждой нарисуйте пересчитанную рамку.'],'на всех 6 кадрах рамка остаётся на объекте; рамка не выходит за пределы кадра (обрежьте её).'],
+ ['Повороты на 90° с рамкой',['Задайте вручную рамку объекта и нарисуйте её.','Поверните картинку на 90°, 180°, 270° (с изменением размера холста) и пересчитайте рамку формулами.','Верните каждую к 400 × 300 через resize и crop, снова пересчитав рамку.'],'на всех трёх результатах рамка на объекте; выведите координаты рамок.'],
+ ['Сетка параметров в папку',['4 угла × 3 масштаба × 2 варианта отражения. Сохраните все сочетания в папку, имя файла кодирует параметры, например r15_z1.1_f1.jpg.','Посчитайте файлы в папке средствами Python.','Покажите сетку 6 × 4 с подписями.'],'функция разбирает имя файла обратно в числа; для всех файлов разобранные параметры совпадают с исходными.'],
+ ['Шум',['Гауссов шум с σ = 5, 15, 30 на NumPy (помните про переполнение uint8).','Шум «соль-перец» с долей 1 % и 5 % пикселей.','Покажите 5 результатов и среднюю абсолютную разницу с оригиналом для каждого.'],'для «соли-перца» реальная доля изменённых пикселей отличается от заданной не больше чем на 0.5 п.п.'],
+ ['Цвет своими руками',['Без ImageEnhance: яркость ×0.6 и ×1.4, контраст ×1.5 (растяжение относительно среднего).','Оттенки серого по формуле 0.299·R + 0.587·G + 0.114·B.','Покажите 5 картинок с подписями.'],'ваш серый отличается от img.convert("L") максимум на 1; выведите эту разницу.'],
+ ['Синтетика из себя',['Вырежьте из изображения 3 круга разного радиуса как RGBA-объекты.','Фон — это же изображение, размытое GaussianBlur.','Вставьте круги в случайные места без перекрытия, сохраните рамки. Сгенерируйте 6 кадров, нарисуйте рамки.'],'функция пересечения рамок возвращает False для всех пар на всех кадрах.'],
+ ['Пазл',['Разбейте кадр 400 × 300 на сетку 4 × 3 квадратов 100 × 100.','Перемешайте квадраты с заданным seed и верните картинку и перестановку.','Напишите обратную функцию сборки. Покажите 5 перемешиваний с разными seed.'],'np.array_equal(restore(*shuffle(img, s)), img) истинно для seed 0…9.'],
+ ['Наклон (shear)',['Через Image.transform с AFFINE сделайте наклон по X с коэффициентами 0.1, 0.2, 0.3 и по Y с теми же коэффициентами.','Центр кадра должен остаться на месте.','Покажите 6 результатов.'],'поставьте яркую точку в центре исходника и найдите её в каждом результате: отклонение не больше 1 px.'],
+ ['Mosaic',['Сделайте 4 разные аугментации изображения: отражение, поворот 10°, масштаб 1.2, случайный кроп.','Склейте их 2 × 2 в кадр 400 × 300 с точкой стыка в случайном месте (30–70 % по каждой оси). Каждую часть подгоните под свой прямоугольник через crop или resize.','6 примеров.'],'размер всегда 400 × 300; выведите координаты точки стыка и нарисуйте её крестиком.'],
+ ['Объект с тенью',['Вырежьте объект маской-эллипсом.','Тень: та же маска чёрного цвета, размытая GaussianBlur(8), сдвинутая на (10, 10), прозрачность 50 %.','Вставьте тень, затем объект на новый фон (градиент или второе изображение). 6 вариантов положения.'],'пиксель под краем объекта со стороны тени темнее, чем тот же пиксель фона без тени; выведите оба значения.']
+];
+
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function card(task,idx,data){
+  const [name,steps,check]=data;
+  const c=el('div','card var');
+  const top=el('div','top'); top.append(el('span','id',`Задание ${task} · вариант ${idx+1}`)); c.append(top);
+  c.append(el('h3',null,name));
+  const ol=el('ol'); steps.forEach(s=>ol.append(el('li',null,s))); c.append(ol);
+  const ch=el('p','check'); const b=el('b',null,'Проверка: '); ch.append(b,document.createTextNode(check)); c.append(ch);
+  return c;
+}
+const all1=document.getElementById('all1'), all2=document.getElementById('all2');
+T1.forEach((d,i)=>all1.append(card(1,i,d)));
+T2.forEach((d,i)=>all2.append(card(2,i,d)));
+
+const n=document.getElementById('n'), mine=document.getElementById('mine');
+function pick(){
+  let v=parseInt(n.value,10); if(!(v>=1)) v=1;
+  const a=(v-1)%15, b=((v-1)*4+6)%15;
+  mine.innerHTML=''; mine.append(card(1,a,T1[a]),card(2,b,T2[b]));
+  try{localStorage.setItem('ctl-n',String(v))}catch(e){}
+}
+try{const s=localStorage.getItem('ctl-n'); if(s) n.value=s}catch(e){}
+n.addEventListener('input',pick); pick();
+
+/* no-copy for code */
+const toast=el('div','toast'); toast.hidden=true; toast.setAttribute('role','status'); document.body.append(toast); let tt;
+const say=m=>{toast.textContent=m;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,2000)};
+const inPre=x=>x&&(x.nodeType===1?x:x.parentElement)?.closest?.('pre');
+const touches=()=>{const s=getSelection();if(!s||s.isCollapsed)return false;return inPre(s.anchorNode)||inPre(s.focusNode)||[...document.querySelectorAll('pre')].some(p=>s.containsNode(p,true))};
+['copy','cut'].forEach(ev=>document.addEventListener(ev,e=>{if(!touches())return;e.preventDefault();try{e.clipboardData.setData('text/plain','')}catch(_){}say('Код из опоры не копируется')}));
+['contextmenu','selectstart','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(inPre(e.target))e.preventDefault()}));
+})();
+</script>
+
+</body>
+</html>

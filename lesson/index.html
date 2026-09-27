@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Аугментация и синтетика</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#E1E5E2; --paper:#F7F8F5; --surface:#FFFFFF; --ink:#16202A; --muted:#5A6572; --line:#D5DAD6;
+  --accent:#2346D8; --accent-ink:#FFFFFF; --accent-soft:#E0E6FC;
+  --amber:#9A6400; --amber-soft:#F7EACB;
+  --ok:#1C7A50; --ok-soft:#D8EFE3; --bad:#B3302A; --bad-soft:#F7DDDA;
+  --check-a:#FFFFFF; --check-b:#D9DEE3;
+  --code-bg:#17202B; --code-ink:#DCE3EA; --code-line:#26313E;
+  --hl-kw:#93A9FF; --hl-str:#E8C66F; --hl-com:#7F8C99; --hl-num:#F2A27A; --hl-fn:#7FD6B2;
+  --display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0A0E13; --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+    --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850;
+    --amber:#F0B43A; --amber-soft:#3A2D10;
+    --ok:#47BA86; --ok-soft:#133528; --bad:#EF7266; --bad-soft:#42201C;
+    --check-a:#2A333D; --check-b:#1D252E;
+    --code-bg:#0C1117; --code-line:#1E2833;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0A0E13; --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+  --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850;
+  --amber:#F0B43A; --amber-soft:#3A2D10;
+  --ok:#47BA86; --ok-soft:#133528; --bad:#EF7266; --bad-soft:#42201C;
+  --check-a:#2A333D; --check-b:#1D252E;
+  --code-bg:#0C1117; --code-line:#1E2833;
+}
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:14px}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- deck shell ---------- */
+html.deck-mode, html.deck-mode body{height:100%;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%}
+.viewport{flex:1;position:relative;min-height:0}
+.deck{position:absolute;left:50%;top:50%;width:1280px;height:720px;
+  transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:center;
+  background:var(--paper);border-radius:14px;box-shadow:0 1px 0 var(--line),0 18px 50px rgba(10,20,30,.14);overflow:hidden}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;gap:26px;padding:50px 68px 42px;overflow:auto}
+.slide.active{display:flex}
+@media (prefers-reduced-motion: no-preference){
+  .slide.active{animation:in .28s ease-out}
+  @keyframes in{from{opacity:.35;transform:translateX(10px)}to{opacity:1;transform:none}}
+}
+.bar{display:flex;align-items:center;gap:14px;padding:10px 20px calc(10px + env(safe-area-inset-bottom,0px));
+  font-family:var(--mono);font-size:13px;color:var(--muted)}
+.bar button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--ink)}
+.bar button:hover{border-color:var(--accent)}
+.progress{flex:1;height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+.counter{font-variant-numeric:tabular-nums;min-width:64px;text-align:center}
+.hint{white-space:nowrap}
+
+/* flow mode (phones) */
+html.flow-mode body{background:var(--paper)}
+html.flow-mode .deck{position:static;width:auto;height:auto;transform:none;border-radius:0;box-shadow:none;padding-inline:16px}
+html.flow-mode .slide{position:relative;inset:auto;display:flex;padding:40px 0;border-bottom:1px solid var(--line);overflow:visible}
+html.flow-mode .bar{display:none}
+html.flow-mode .g2,html.flow-mode .g3,html.flow-mode .g4,html.flow-mode .step,html.flow-mode .title-grid{grid-template-columns:minmax(0,1fr)!important}
+html.flow-mode h1{font-size:34px}
+html.flow-mode h2{font-size:24px}
+
+/* ---------- type ---------- */
+.eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.eyebrow::before{content:"";width:12px;height:12px;flex:none;
+  background:conic-gradient(var(--accent) 0 25%,transparent 0 50%,var(--accent) 0 75%,transparent 0)}
+.eyebrow.syn::before{background:conic-gradient(var(--amber) 0 25%,transparent 0 50%,var(--amber) 0 75%,transparent 0)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:58px;line-height:1.06;font-weight:600}
+h2{font-size:32px;line-height:1.15;font-weight:600}
+h3{font-size:18px;line-height:1.25;font-weight:600}
+p,li{font-size:18px;line-height:1.5;margin:0}
+.lead{font-size:21px;line-height:1.45;max-width:36em}
+.muted{color:var(--muted)}
+.small,.small li{font-size:15px;line-height:1.45}
+ul.clean{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+ul.dots{margin:0;padding-left:1.1em;display:grid;gap:8px}
+code{font-family:var(--mono);font-size:.88em;background:var(--accent-soft);padding:.05em .35em;border-radius:4px}
+b{font-weight:600}
+
+/* ---------- layout ---------- */
+.content{flex:1;min-height:0}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.step{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:40px;align-items:start}
+.step.wide{grid-template-columns:minmax(0,.78fr) minmax(0,1.7fr)}
+.stack{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.note{border-left:3px solid var(--accent);padding:10px 14px;background:var(--accent-soft);border-radius:0 8px 8px 0}
+.note.syn{border-color:var(--amber);background:var(--amber-soft)}
+.note p,.note li{font-size:16px}
+.note .label{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.06em;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.tag.syn{background:var(--amber-soft);color:var(--amber)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* ---------- code ---------- */
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px 18px;overflow:auto;
+  font-family:var(--mono);font-size:13.5px;line-height:1.55;tab-size:4}
+pre code{background:none;padding:0;font-size:inherit;color:inherit}
+pre,pre *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:10;
+  background:var(--ink);color:var(--paper);font-size:14px;padding:10px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+pre.out{background:var(--surface);color:var(--ink);border:1px dashed var(--line)}
+pre .cap{display:block;color:var(--hl-com);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.hljs-keyword,.hljs-built_in{color:var(--hl-kw)}
+.hljs-string{color:var(--hl-str)}
+.hljs-comment{color:var(--hl-com);font-style:italic}
+.hljs-number,.hljs-literal{color:var(--hl-num)}
+.hljs-title{color:var(--hl-fn)}
+.hljs-subst{color:var(--code-ink)}
+
+/* ---------- canvases ---------- */
+canvas.cv{display:block;width:100%;height:auto;aspect-ratio:1;border-radius:8px;background:#000;max-width:100%}
+canvas.cv.clear{background:transparent}
+.checker{border-radius:8px;background:repeating-conic-gradient(var(--check-a) 0 25%,var(--check-b) 0 50%) 0 0/18px 18px}
+figure{margin:0;display:flex;flex-direction:column;gap:6px}
+figcaption{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:center}
+.pair{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));gap:12px}
+.op{align-self:center;font-family:var(--display);font-size:26px;color:var(--muted);text-align:center}
+
+/* ---------- title ---------- */
+.title-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:48px;align-items:center;flex:1}
+.sheet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sheet canvas{border-radius:6px}
+.kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--surface)}
+
+/* ---------- quiz ---------- */
+.quiz{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.qcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 15px;display:flex;flex-direction:column;gap:10px}
+.qcard p.q{font-size:15.5px;line-height:1.4;font-weight:500;flex:1}
+.qcard .btns{display:flex;gap:6px;flex-wrap:wrap}
+.qcard button{flex:1;font-size:13px;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--paper);cursor:pointer;white-space:nowrap}
+.qcard button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.qcard button:disabled{cursor:default;opacity:.55}
+.qcard button.picked{opacity:1;font-weight:600}
+.qcard .why{font-size:13.5px;line-height:1.4;color:var(--muted)}
+.qcard.right{border-color:var(--ok);box-shadow:inset 0 3px 0 var(--ok)}
+.qcard.wrong{border-color:var(--bad);box-shadow:inset 0 3px 0 var(--bad)}
+.qcard .verdict{font-weight:600;color:var(--ink)}
+.qcard.right .verdict{color:var(--ok)} .qcard.wrong .verdict{color:var(--bad)}
+.qhead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.score{font-family:var(--mono);font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:14px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{color:var(--accent-ink);filter:brightness(1.08)}
+
+/* ---------- playground ---------- */
+.play{display:grid;grid-template-columns:420px minmax(0,1fr);gap:40px;align-items:start}
+.ctl{display:grid;grid-template-columns:130px minmax(0,1fr) 64px;gap:12px 14px;align-items:center}
+.ctl label{font-size:15px}
+.ctl output{font-family:var(--mono);font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.ctl select{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 8px}
+.checks{display:flex;gap:18px;grid-column:2 / 4}
+.checks label{display:flex;gap:6px;align-items:center}
+.checks input{accent-color:var(--accent);width:16px;height:16px}
+
+/* ---------- metrics ---------- */
+.dumb{display:grid;gap:0}
+.drow{display:grid;grid-template-columns:230px minmax(0,1fr) 70px;align-items:center;height:52px;border-bottom:1px solid var(--line)}
+.drow .lbl{font-size:15.5px;line-height:1.25}
+.drow .lbl small{display:block;font-size:12.5px;color:var(--muted)}
+.track{position:relative;height:100%}
+.track .grid{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 25%);opacity:.7}
+.track .seg{position:absolute;top:50%;height:4px;margin-top:-2px;background:var(--muted);opacity:.45;
+  left:calc((var(--v) - 60) / 40 * 100%);right:calc(100% - (var(--t) - 60) / 40 * 100%)}
+.track .dot{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%}
+.track .dot.t{left:calc((var(--t) - 60) / 40 * 100%);border:2.5px solid var(--muted);background:var(--paper)}
+.track .dot.v{left:calc((var(--v) - 60) / 40 * 100%);background:var(--accent)}
+.track .vnum{position:absolute;top:50%;transform:translate(-50%,-150%);left:calc((var(--v) - 60) / 40 * 100%);font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500}
+.drow .gap{font-family:var(--mono);font-size:13px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.drow.worse .dot.v{background:var(--bad)} .drow.worse .vnum{color:var(--bad)}
+.axis{display:grid;grid-template-columns:230px minmax(0,1fr) 70px;font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:6px}
+.axis .ticks{position:relative;height:16px}
+.axis .ticks span{position:absolute;transform:translateX(-50%)}
+.legend{display:flex;gap:18px;font-size:13.5px;color:var(--muted);align-items:center;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+
+/* ---------- roadmap ---------- */
+.road{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 36px;list-style:none;margin:0;padding:0;counter-reset:s}
+.road li{counter-increment:s}
+.road button{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;cursor:pointer}
+.road button:hover{border-color:var(--accent)}
+.road button::before{content:counter(s,decimal-leading-zero);font-family:var(--display);font-size:22px;color:var(--accent);font-weight:600}
+.road .t{font-size:17px;font-weight:600;display:block}
+.road .d{font-size:14px;color:var(--muted);display:block}
+
+/* ---------- calc ---------- */
+.calc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.calc label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.calc input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.calc-out{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.calc-out b{font-size:22px}
+
+/* ---------- final ---------- */
+.task{display:flex;flex-direction:column;gap:12px}
+.task h3{font-size:20px}
+.task .pts{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.task ul li{font-size:15.5px}
+.formula{font-family:var(--mono);font-size:16px;padding:10px 12px;background:var(--paper);border-radius:8px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}
+
+table.cmp{border-collapse:collapse;width:100%;font-size:15px}
+table.cmp th,table.cmp td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.35}
+table.cmp th{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+table.cmp td:first-child{color:var(--muted);width:24%}
+.tablewrap{overflow-x:auto}
+</style>
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="app">
+<div class="viewport" id="viewport">
+<main class="deck" id="deck">
+
+<!-- 1 ─────────── TITLE -->
+<section class="slide" data-name="Титул">
+  <div class="title-grid">
+    <div class="stack" style="gap:26px">
+      <p class="eyebrow">Компьютерное зрение · занятие</p>
+      <h1>Аугментация и синтетические данные</h1>
+      <p class="lead">Как из 800 фотографий получить 20&nbsp;000, чем синтетика отличается от аугментации и где её нельзя применять. В конце пошагово соберём свой генератор.</p>
+      <p class="small muted">Листать: <span class="kbd">←</span> <span class="kbd">→</span> или <span class="kbd">пробел</span></p>
+    </div>
+    <figure>
+      <div class="sheet" id="titleSheet"></div>
+      <figcaption>Одна чашка и пять фонов → 9 разных кадров. <button class="link" id="titleAgain">Ещё раз</button></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 2 ─────────── PROBLEM -->
+<section class="slide" data-name="Проблема">
+  <div>
+    <p class="eyebrow">Зачем это всё</p>
+    <h2>Данных для обучения всегда не хватает</h2>
+  </div>
+  <div class="content stack" style="gap:24px">
+    <div class="g3">
+      <div class="card stack" style="gap:8px"><h3>Сбор дорогой</h3><p class="small">Снять, отсортировать, выбросить брак. Сотни фото — это дни работы.</p></div>
+      <div class="card stack" style="gap:8px"><h3>Разметка ещё дороже</h3><p class="small">Каждую рамку, маску и подпись рисует человек, и он ошибается.</p></div>
+      <div class="card stack" style="gap:8px"><h3>Редкие случаи</h3><p class="small">Брак — одна деталь из тысячи. Пешеход в метель ночью. Их почти нет в выборке.</p></div>
+      <div class="card stack" style="gap:8px"><h3>Приватность</h3><p class="small">Лица, медкарты, паспорта нельзя просто собрать и выложить в датасет.</p></div>
+      <div class="card stack" style="gap:8px"><h3>Дисбаланс классов</h3><p class="small">700 кошек и 100 собак: модель учится чаще отвечать «кошка».</p></div>
+      <div class="card stack" style="gap:8px"><h3>Переобучение</h3><p class="small">На маленьком датасете модель запоминает картинки вместо признаков.</p></div>
+    </div>
+    <div class="g2" style="gap:16px">
+      <div class="note"><span class="label">Выход 1</span><p><b>Аугментация</b>: сделать из имеющихся фото больше, слегка их изменив.</p></div>
+      <div class="note syn"><span class="label">Выход 2</span><p><b>Синтетика</b>: создать новые кадры программно, с разметкой сразу.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────── WHAT IS SYNTHETIC -->
+<section class="slide" data-name="Что такое синтетика">
+  <div>
+    <p class="eyebrow syn">Синтетические данные</p>
+    <h2>Что такое синтетические данные</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)">
+    <div class="stack" style="gap:18px">
+      <p class="lead" style="font-size:19px">Данные, которые <b>не сняли в реальном мире, а создали программно</b>. Они должны быть похожи на реальные настолько, чтобы на них можно было учить модель.</p>
+      <ul class="clean">
+        <li><span class="tag syn">композитинг</span>&nbsp; вырезали объект (PNG с прозрачностью) и вклеили на новый фон. Это ваше задание&nbsp;1.</li>
+        <li><span class="tag syn">3D-рендер</span>&nbsp; модель объекта в Blender или Unity: любые ракурсы и освещение.</li>
+        <li><span class="tag syn">симуляторы</span>&nbsp; CARLA для автопилотов, Isaac Sim для роботов.</li>
+        <li><span class="tag syn">процедурно</span>&nbsp; шрифты и шаблоны: номера, чеки, документы для OCR.</li>
+        <li><span class="tag syn">генеративные</span>&nbsp; GAN и диффузионные модели рисуют кадры по описанию.</li>
+      </ul>
+    </div>
+    <div class="stack" style="justify-content:center">
+      <div class="pair" style="grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);max-width:420px;width:100%;margin-inline:auto">
+        <figure><div class="checker"><canvas class="cv clear" width="360" height="360" data-kind="obj"></canvas></div><figcaption>объект · RGBA</figcaption></figure>
+        <div class="op">+</div>
+        <figure><canvas class="cv" width="360" height="360" data-kind="bg" data-bg="2"></canvas><figcaption>фон</figcaption></figure>
+      </div>
+      <div class="pair" style="grid-template-columns:1fr 28px 250px 1fr">
+        <div></div>
+        <div class="op">=</div>
+        <figure><canvas class="cv" width="480" height="480" data-kind="synth" data-seed="7" data-bg="2" data-box="1"></canvas><figcaption>кадр + рамка бесплатно</figcaption></figure>
+        <div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────── WHY -->
+<section class="slide" data-name="Зачем синтетика">
+  <div>
+    <p class="eyebrow syn">Синтетические данные</p>
+    <h2>Почему синтетику используют и чем она опасна</h2>
+  </div>
+  <div class="content stack" style="gap:24px">
+    <div class="g2">
+      <div class="stack" style="gap:12px">
+        <p><span class="tag ok">плюсы</span></p>
+        <ul class="dots">
+          <li><b>Разметка бесплатно.</b> Мы сами положили объект, значит знаем его класс, рамку и маску.</li>
+          <li><b>Масштаб.</b> 4000 кадров генерируются за пару минут.</li>
+          <li><b>Редкие и опасные сцены</b> без риска: авария, пожар, брак.</li>
+          <li><b>Нет персональных данных.</b> Сгенерированный человек никому не принадлежит.</li>
+          <li><b>Баланс классов.</b> Догенерируем редкий класс до нужного количества.</li>
+        </ul>
+      </div>
+      <div class="stack" style="gap:12px">
+        <p><span class="tag bad">риски</span></p>
+        <ul class="dots">
+          <li><b>Разрыв доменов</b> (domain gap). Свет, тени и шум камеры в синтетике другие. Модель может «не узнать» настоящий кадр.</li>
+          <li><b>Модель учит артефакты.</b> Резкие края вклейки, повторяющиеся фоны, одинаковый масштаб.</li>
+          <li><b>Метрики на синтетике врут.</b> Модель хорошо решает то, что мы сами придумали.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note" style="max-width:760px"><span class="label">Главное правило</span><p>Учим на смеси реальных и синтетических данных. Проверяем только на реальных.</p></div>
+  </div>
+</section>
+
+<!-- 5 ─────────── WHERE -->
+<section class="slide" data-name="Где применяют">
+  <div>
+    <p class="eyebrow syn">Синтетические данные</p>
+    <h2>Где синтетика уже работает</h2>
+  </div>
+  <div class="content g3">
+    <div class="card stack" style="gap:8px"><h3>Автопилоты</h3><p class="small">Симулятор рисует ночь, дождь, туман и пешеходов, выбегающих на дорогу. В жизни такие кадры собирать опасно.</p><p class="small muted">Генерируем: сцену целиком</p></div>
+    <div class="card stack" style="gap:8px"><h3>Распознавание текста</h3><p class="small">Номера машин, чеки, бланки. Текст рендерится шрифтами, поверх добавляются блики и шум.</p><p class="small muted">Генерируем: изображение + строку-ответ</p></div>
+    <div class="card stack" style="gap:8px"><h3>Контроль качества</h3><p class="small">Трещины и сколы дорисовывают на чистые детали, потому что настоящего брака единицы.</p><p class="small muted">Генерируем: редкий класс</p></div>
+    <div class="card stack" style="gap:8px"><h3>Ретейл</h3><p class="small">Товары на полках: 3D-модели упаковок в разных ракурсах, с перекрытиями и ценниками.</p><p class="small muted">Генерируем: объекты + рамки</p></div>
+    <div class="card stack" style="gap:8px"><h3>Робототехника</h3><p class="small">Робот тренирует захват предметов миллионы раз в симуляторе, потом навык переносят на железо.</p><p class="small muted">Генерируем: среду и физику</p></div>
+    <div class="card stack" style="gap:8px"><h3>Медицина</h3><p class="small">Осторожно. Синтетические снимки помогают при обучении, но диагноз модели проверяют только на реальных пациентах.</p><p class="small muted">Генерируем: добавку к обучению</p></div>
+  </div>
+</section>
+
+<!-- 6 ─────────── QUIZ MATCH -->
+<section class="slide" data-name="Задание: синтетика или оригинал">
+  <div class="qhead">
+    <div>
+      <p class="eyebrow syn">Задание на сопоставление</p>
+      <h2>Где можно синтетику, а где только реальные данные?</h2>
+    </div>
+    <div class="row"><span class="score" data-score>Отвечено 0 из 8</span><button class="btn" data-reset>Заново</button></div>
+  </div>
+  <div class="content quiz" data-quiz="match"></div>
+</section>
+
+<!-- 7 ─────────── WHAT IS AUGMENTATION -->
+<section class="slide" data-name="Что такое аугментация">
+  <div>
+    <p class="eyebrow">Аугментация</p>
+    <h2>Аугментация: меняем картинку, метка остаётся</h2>
+  </div>
+  <div class="content stack" style="gap:22px">
+    <p class="lead" style="font-size:19px;max-width:48em"><b>Аугментация</b> — это преобразование уже существующих примеров так, чтобы ответ не изменился. Зеркальная кошка остаётся кошкой, поэтому одно фото даёт модели много «новых» примеров.</p>
+    <div class="pair" style="--n:6">
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0}'></canvas><figcaption>оригинал</figcaption></figure>
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"flipH":true}'></canvas><figcaption>флип</figcaption></figure>
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"angle":15}'></canvas><figcaption>поворот 15°</figcaption></figure>
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"dx":70,"dy":-30}'></canvas><figcaption>сдвиг</figcaption></figure>
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"scale":1.3}'></canvas><figcaption>масштаб ×1.3</figcaption></figure>
+      <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"crop":[0.28,0.05,0.62]}'></canvas><figcaption>обрезка</figcaption></figure>
+    </div>
+    <div class="g2" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:30px">
+      <div class="tablewrap"><table class="cmp">
+        <tr><th></th><th>Аугментация</th><th>Синтетика</th></tr>
+        <tr><td>Исходник</td><td>реальное фото</td><td>создаём кадр с нуля или из частей</td></tr>
+        <tr><td>Что меняем</td><td>геометрию, цвет, шум</td><td>всю сцену: фон, объект, его место</td></tr>
+        <tr><td>Разметка</td><td>преобразуем вместе с картинкой</td><td>получаем автоматически</td></tr>
+        <tr><td>У вас</td><td>задание 2</td><td>задание 1</td></tr>
+      </table></div>
+      <div class="stack" style="gap:10px">
+        <p class="small muted">Виды аугментаций</p>
+        <p class="small"><span class="tag">геометрия</span> флип, поворот, сдвиг, масштаб, обрезка</p>
+        <p class="small"><span class="tag">цвет</span> яркость, контраст, оттенок</p>
+        <p class="small"><span class="tag">шум</span> гауссов шум, размытие, JPEG-артефакты</p>
+        <p class="small"><span class="tag">смешивание</span> Cutout, MixUp, CutMix</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────── PLAYGROUND -->
+<section class="slide" data-name="Песочница">
+  <div>
+    <p class="eyebrow">Аугментация · попробуйте сами</p>
+    <h2>Песочница: какие параметры ещё сохраняют смысл?</h2>
+  </div>
+  <div class="content play">
+    <canvas class="cv" id="pgCanvas" width="480" height="480"></canvas>
+    <div class="stack" style="gap:20px">
+      <div class="ctl">
+        <label for="pgBg">Фон</label>
+        <select id="pgBg"><option value="0">Стол</option><option value="1">Небо</option><option value="2">Плитка</option><option value="3">Трава</option><option value="4">Ткань</option><option value="-1">Без фона</option></select><span></span>
+        <span>Отражение</span>
+        <div class="checks"><label><input type="checkbox" id="pgFlipH"> по горизонтали</label><label><input type="checkbox" id="pgFlipV"> по вертикали</label></div>
+        <label for="pgAngle">Поворот, °</label><input type="range" id="pgAngle" min="-45" max="45" value="0"><output id="oAngle">0</output>
+        <label for="pgDx">Сдвиг X, px</label><input type="range" id="pgDx" min="-120" max="120" step="5" value="0"><output id="oDx">0</output>
+        <label for="pgDy">Сдвиг Y, px</label><input type="range" id="pgDy" min="-120" max="120" step="5" value="0"><output id="oDy">0</output>
+        <label for="pgScale">Масштаб</label><input type="range" id="pgScale" min="0.6" max="1.6" step="0.05" value="1"><output id="oScale">1.00</output>
+      </div>
+      <div class="row"><button class="btn primary" id="pgRand">Случайная аугментация</button><button class="btn" id="pgReset">Сброс</button></div>
+      <pre><span class="cap">то же самое функциями из практики</span><code id="pgCode">img</code></pre>
+      <p class="small muted">Угол положительный — против часовой стрелки, как в <code>PIL.Image.rotate</code>. Чёрные углы — пустота, которую надо чем-то заполнять.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ─────────── QUIZ AUG -->
+<section class="slide" data-name="Задание: безопасно или ломает">
+  <div class="qhead">
+    <div>
+      <p class="eyebrow">Аугментация · практика</p>
+      <h2>Безопасно или аугментация поменяет метку?</h2>
+    </div>
+    <div class="row"><span class="score" data-score>Отвечено 0 из 8</span><button class="btn" data-reset>Заново</button></div>
+  </div>
+  <div class="content quiz" data-quiz="aug"></div>
+</section>
+
+<!-- 10 ─────────── METRICS -->
+<section class="slide" data-name="Влияние на качество">
+  <div>
+    <p class="eyebrow">Аугментация · результат</p>
+    <h2>Как аугментация меняет качество модели</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:40px">
+    <div class="stack" style="gap:12px">
+      <div class="legend"><span><i style="border:2.5px solid var(--muted);background:var(--paper)"></i>accuracy на train</span><span><i style="background:var(--accent)"></i>accuracy на val</span><span style="margin-left:auto">разрыв, п.п.</span></div>
+      <div class="dumb">
+        <div class="drow" style="--t:99.1;--v:71.4"><div class="lbl">Без аугментации<small>только 800 исходных фото</small></div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">71.4</span></div><div class="gap">27.7</div></div>
+        <div class="drow" style="--t:97.8;--v:76.9"><div class="lbl">+ флип по горизонтали</div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">76.9</span></div><div class="gap">20.9</div></div>
+        <div class="drow" style="--t:96.2;--v:80.3"><div class="lbl">+ поворот ±15°</div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">80.3</span></div><div class="gap">15.9</div></div>
+        <div class="drow" style="--t:94.7;--v:84.1"><div class="lbl">+ сдвиг и масштаб</div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">84.1</span></div><div class="gap">10.6</div></div>
+        <div class="drow" style="--t:93.5;--v:87.6"><div class="lbl">+ замена фона<small>синтетика по заданию 1</small></div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">87.6</span></div><div class="gap">5.9</div></div>
+        <div class="drow worse" style="--t:82.0;--v:78.3"><div class="lbl">Перебор<small>поворот ±180°, обрезка 70&nbsp;%</small></div><div class="track"><div class="grid"></div><div class="seg"></div><div class="dot t"></div><div class="dot v"></div><span class="vnum">78.3</span></div><div class="gap">3.7</div></div>
+      </div>
+      <div class="axis"><span></span><div class="ticks"><span style="left:0">60&nbsp;%</span><span style="left:25%">70</span><span style="left:50%">80</span><span style="left:75%">90</span><span style="left:100%">100</span></div><span></span></div>
+      <p class="small muted">Условный пример: классификатор на 10 классов, 800 фото, одна и та же сеть, 30 эпох. Цифры иллюстративные, но тенденция типичная.</p>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="card stack" style="gap:6px"><h3>Разрыв сокращается</h3><p class="small">Без аугментации модель выучила train почти наизусть (99&nbsp;%), а на новых фото ошибается в трёх случаях из десяти. Каждая аугментация сближает train и val.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Отдача убывает</h3><p class="small">Флип дал +5.5 п.п., замена фона уже +3.5. Добавлять преобразования бесконечно бесполезно.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Перебор вредит</h3><p class="small">При слишком сильных искажениях разрыв маленький, но val упал до 78&nbsp;%. Модель учит мусор и недообучается.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ─────────── ROADMAP -->
+<section class="slide" data-name="План практики">
+  <div>
+    <p class="eyebrow">Практика</p>
+    <h2>Практика: от простого к сложному</h2>
+  </div>
+  <div class="content stack" style="gap:20px">
+    <p class="muted" style="font-size:17px">Каждый шаг — одна функция на Python (Pillow + NumPy). Функции из шагов 1–8 собираются в задание 2, шаги 9–10 — в задание 1. В коде на слайдах есть пропуски <code>___</code>, <code>...</code> и вопросы: их заполняете вы. Код со слайдов не копируется.</p>
+    <ol class="road">
+      <li><button data-go="step-1"><span><span class="t">Считаем датасет</span><span class="d">сколько файлов, какие классы и размеры</span></span><span class="tag">основа</span></button></li>
+      <li><button data-go="step-6"><span><span class="t">Масштаб</span><span class="d">приближение и отдаление</span></span><span class="tag">задание 2</span></button></li>
+      <li><button data-go="step-2"><span><span class="t">Флип по горизонтали</span><span class="d">первая аугментация в одну строку</span></span><span class="tag">основа</span></button></li>
+      <li><button data-go="step-7"><span><span class="t">Обрезка</span><span class="d">случайный кусок кадра</span></span><span class="tag">оба</span></button></li>
+      <li><button data-go="step-3"><span><span class="t">Флип по вертикали</span><span class="d">и когда его делать нельзя</span></span><span class="tag">основа</span></button></li>
+      <li><button data-go="step-8"><span><span class="t">Комбинации</span><span class="d">сетка 3 × 3 × 3 → 21&nbsp;600 файлов</span></span><span class="tag">задание 2</span></button></li>
+      <li><button data-go="step-4"><span><span class="t">Поворот</span><span class="d">угол и заливка пустых углов</span></span><span class="tag">задание 2</span></button></li>
+      <li><button data-go="step-9"><span><span class="t">RGBA и замена фона</span><span class="d">вклеиваем объект с прозрачностью</span></span><span class="tag syn">задание 1</span></button></li>
+      <li><button data-go="step-5"><span><span class="t">Сдвиг</span><span class="d">смещение без «заворачивания»</span></span><span class="tag">задание 2</span></button></li>
+      <li><button data-go="step-10"><span><span class="t">Генератор синтетики</span><span class="d">4000 кадров и разметка</span></span><span class="tag syn">задание 1</span></button></li>
+    </ol>
+  </div>
+</section>
+
+<!-- 12 ─────────── STEP 1 -->
+<section class="slide" id="step-1" data-name="Шаг 1">
+  <div>
+    <p class="eyebrow">Практика · шаг 1 из 10</p>
+    <h2>Считаем, что у нас есть</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Прежде чем размножать данные, узнайте их размер. От него зависит, сколько вариантов нужно на одно фото, чтобы получить больше 10&nbsp;000.</p>
+      <p>Ожидаемая структура: <code>dataset/&lt;класс&gt;/&lt;файл&gt;.jpg</code></p>
+      <div class="note"><span class="label">Проверь себя</span><p>Сколько изображений в каждом классе? Если один класс в 3 раза меньше другого, его стоит аугментировать сильнее.</p></div>
+    </div>
+    <div class="stack" style="gap:12px">
+<pre><code class="language-python">from pathlib import Path
+from collections import Counter
+from PIL import Image
+
+DATA = Path("dataset")
+EXT = {".jpg", ".jpeg", ".png"}
+
+# 1. Все картинки из всех подпапок.
+#    Какой метод Path обходит папки рекурсивно?
+#    Как отбросить файлы, которые не картинки?
+files = [p for p in DATA.___("*") if ___]
+print("Всего изображений:", ___)
+
+# 2. Класс = имя папки, в которой лежит файл.
+by_class = Counter(___ for p in files)
+
+# 3. Сами: три самых частых размера (ширина, высота).
+#    Пригодятся Image.open(p).size и Counter.most_common</code></pre>
+<pre class="out"><span class="cap">пример вывода</span>Всего изображений: 800
+        cats: 412
+        dogs: 388
+Частые размеры: [((640, 480), 693), ((480, 640), 81), ((800, 600), 26)]</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ─────────── STEP 2 -->
+<section class="slide" id="step-2" data-name="Шаг 2">
+  <div>
+    <p class="eyebrow">Практика · шаг 2 из 10</p>
+    <h2>Флип по горизонтали</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Картинка в NumPy — массив формы <code>(высота, ширина, 3)</code>. Отражение слева направо — это просто столбцы в обратном порядке.</p>
+      <div class="pair">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0}'></canvas><figcaption>img</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"flipH":true}'></canvas><figcaption>flip_h(img)</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Проверь себя</span><p>Двойной флип возвращает исходник: <code>np.array_equal(flip_h(flip_h(img)), img)</code> должно быть <code>True</code>. Обратите внимание на надпись ML.</p></div>
+    </div>
+<pre><code class="language-python">import numpy as np
+from PIL import Image
+
+def load(path):
+    """Файл → массив (H, W, 3) со значениями 0..255."""
+    ...  # открыть → привести к RGB → превратить в массив
+
+def save(arr, path):
+    ...  # какая функция Pillow делает картинку ИЗ массива?
+
+def flip_h(img):
+    """Зеркало слева направо."""
+    # Ось 0 — строки (высота), ось 1 — столбцы (ширина).
+    # Какую ось нужно пройти в обратном порядке?
+    # Нельзя: np.fliplr, ImageOps.mirror. Только срез.
+    return img[___]</code></pre>
+  </div>
+</section>
+
+<!-- 14 ─────────── STEP 3 -->
+<section class="slide" id="step-3" data-name="Шаг 3">
+  <div>
+    <p class="eyebrow">Практика · шаг 3 из 10</p>
+    <h2>Флип по вертикали и когда он вреден</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Меняем порядок строк. А что получится, если применить оба флипа подряд? Сначала предположите, потом проверьте.</p>
+      <div class="pair">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":1}'></canvas><figcaption>img</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":1,"flipV":true}'></canvas><figcaption>flip_v(img)</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Подумайте</span><p>Небо внизу, пар идёт вниз. Встретит ли модель такой кадр в реальности? Для чашек этот флип скорее вредит, а для снимков со спутника или микроскопа подходит.</p></div>
+    </div>
+<pre><code class="language-python">def flip_v(img):
+    """Зеркало сверху вниз."""
+    return ___
+
+def rotate_180(img):
+    # Новая математика не нужна.
+    # Из каких уже готовых функций его собрать?
+    return ___
+
+# Проверьте гипотезу кодом, а не глазами:
+# совпадает ли ваш rotate_180 с поворотом средствами Pillow?
+pil_180 = np.array(Image.fromarray(img).rotate(180))
+assert np.array_equal(___, ___)
+
+# Если assert упал, выведите форму обоих массивов
+# и найдите, где разница.</code></pre>
+  </div>
+</section>
+
+<!-- 15 ─────────── STEP 4 -->
+<section class="slide" id="step-4" data-name="Шаг 4">
+  <div>
+    <p class="eyebrow">Практика · шаг 4 из 10</p>
+    <h2>Поворот на заданный угол</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Поворачиваем вокруг центра и сохраняем размер кадра. Углы, которые «вылезли» за кадр, обрезаются, а пустые места заливаются цветом <code>fill</code>.</p>
+      <div class="pair" style="--n:3">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":2,"angle":-15}'></canvas><figcaption>−15°</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":2}'></canvas><figcaption>0°</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":2,"angle":15}'></canvas><figcaption>+15°</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Проверь себя</span><p>Чёрные углы — лишний сигнал для модели. Сделайте заливку средним цветом кадра. Подсказка: у <code>img.mean</code> есть параметр <code>axis</code>, а <code>fillcolor</code> ждёт кортеж целых чисел.</p></div>
+    </div>
+<pre><code class="language-python">def rotate(img, angle, fill=(0, 0, 0)):
+    """Поворот вокруг центра, размер кадра НЕ меняется."""
+    pil = Image.fromarray(img)
+    # Найдите в документации Image.rotate три параметра:
+    #   - чтобы кадр не увеличивался;
+    #   - чтобы пустые углы заливались цветом fill;
+    #   - чтобы края были гладкими, а не «лесенкой».
+    out = pil.rotate(angle, ___)
+    return ___
+
+# Эксперимент: поверните на 15° с expand=True и expand=False.
+# Выведите размер обоих результатов.
+# Какой вариант подходит для датасета и почему?
+
+# В каком направлении крутит положительный угол?
+# Проверьте на картинке, а не угадывайте.</code></pre>
+  </div>
+</section>
+
+<!-- 16 ─────────── STEP 5 -->
+<section class="slide" id="step-5" data-name="Шаг 5">
+  <div>
+    <p class="eyebrow">Практика · шаг 5 из 10</p>
+    <h2>Сдвиг изображения</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Двигаем картинку на <code>dx</code> пикселей вправо и <code>dy</code> вниз. Освободившуюся полосу заливаем, а то, что ушло за край, отбрасываем.</p>
+      <div class="pair" style="--n:3">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":3,"dx":-80}'></canvas><figcaption>dx = −80</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":3}'></canvas><figcaption>0</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":3,"dx":60,"dy":40}'></canvas><figcaption>dx = 60, dy = 40</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Проверь себя</span><p>Сравните с <code>np.roll(img, 60, axis=1)</code>. Почему часть чашки появляется с другой стороны и чем это плохо?</p></div>
+    </div>
+<pre><code class="language-python">def shift(img, dx, dy, fill=0):
+    """Сдвиг на dx вправо и dy вниз (отрицательные — влево/вверх).
+    |dx| и |dy| должны быть меньше ширины и высоты."""
+    h, w = img.shape[:2]
+    out = np.full_like(img, fill)
+    # Нарисуйте на бумаге кадр и сдвинутый кадр.
+    # Видимая часть исходника имеет ширину w - |dx|.
+    # С какого столбца она начинается В ИСХОДНИКЕ
+    # и с какого столбца её кладём В out?
+    #   dx &gt;= 0:  src с ___,  dst с ___
+    #   dx &lt;  0:  src с ___,  dst с ___
+    # То же самое для строк и dy.
+    ...
+    out[___, ___] = img[___, ___]
+    return out
+
+# Тесты, которые должны пройти:
+#   shift(img, 0, 0)       совпадает с img
+#   shift(img, 10, 0)      столбцы 0..9 залиты fill
+#   shift(img, -10, 0)     последние 10 столбцов залиты fill</code></pre>
+  </div>
+</section>
+
+<!-- 17 ─────────── STEP 6 -->
+<section class="slide" id="step-6" data-name="Шаг 6">
+  <div>
+    <p class="eyebrow">Практика · шаг 6 из 10</p>
+    <h2>Увеличение и уменьшение</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>При <code>k &gt; 1</code> растягиваем картинку и вырезаем центр нужного размера. При <code>k &lt; 1</code> сжимаем и кладём в центр пустого кадра. Размер на выходе всегда как у исходника.</p>
+      <div class="pair" style="--n:3">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":4,"scale":0.8}'></canvas><figcaption>k = 0.8</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":4}'></canvas><figcaption>k = 1.0</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":4,"scale":1.25}'></canvas><figcaption>k = 1.25</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Проверь себя</span><p>Что останется от объекта при <code>k = 2</code>? А при <code>k = 0.3</code>? Подберите диапазон, где объект ещё узнаётся.</p></div>
+    </div>
+<pre><code class="language-python">def scale(img, k):
+    """k &gt; 1 — приближение, k &lt; 1 — отдаление. Размер кадра прежний."""
+    h, w = img.shape[:2]
+    nh, nw = ___, ___
+    # Осторожно: resize принимает (ширина, высота),
+    # а shape хранит (высота, ширина).
+    big = np.array(Image.fromarray(img).resize(___))
+
+    if k &gt;= 1:
+        # Вырезать из big центральный кусок h × w.
+        # Где его левый верхний угол?
+        ...
+    else:
+        # Положить big в центр чёрного кадра h × w.
+        ...
+
+# Тест: для любого k форма результата == img.shape.
+# Проверьте на k = 0.5, 0.85, 1.0, 1.15, 1.9
+# и на картинке с НЕЧЁТНОЙ шириной.</code></pre>
+  </div>
+</section>
+
+<!-- 18 ─────────── STEP 7 -->
+<section class="slide" id="step-7" data-name="Шаг 7">
+  <div>
+    <p class="eyebrow">Практика · шаг 7 из 10</p>
+    <h2>Случайная обрезка</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Берём случайный квадрат внутри кадра и растягиваем обратно до исходного размера. Модель учится узнавать объект, даже если видна только его часть.</p>
+      <div class="pair">
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"showCrop":[0.22,0.12,0.66]}'></canvas><figcaption>что вырезаем</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-aug='{"bg":0,"crop":[0.22,0.12,0.66]}'></canvas><figcaption>random_crop → resize</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Важно</span><p>Для случайности используйте генератор с seed: <code>rng = np.random.default_rng(42)</code>. Тогда при перезапуске получится тот же датасет.</p></div>
+    </div>
+<pre><code class="language-python">def random_crop(img, size, rng):
+    """Случайный квадрат size × size внутри кадра."""
+    h, w = img.shape[:2]
+    # Какое наибольшее значение может принять top,
+    # чтобы квадрат не вылез за нижний край? А left?
+    # Помните: верхняя граница в rng.integers НЕ включается.
+    top = rng.integers(0, ___)
+    left = rng.integers(0, ___)
+    return ___
+
+# Проверка на «ошибку на единицу»:
+# запустите 1000 раз с size = min(h, w).
+# Всегда ли получается ровно size × size?
+# Попадает ли хоть раз квадрат вплотную к правому краю?
+
+# Затем сами: растяните кроп обратно до (w, h).</code></pre>
+  </div>
+</section>
+
+<!-- 19 ─────────── STEP 8 -->
+<section class="slide" id="step-8" data-name="Шаг 8">
+  <div>
+    <p class="eyebrow">Практика · шаг 8 из 10 · задание 2</p>
+    <h2>Комбинации: из 800 фото — 21&nbsp;600</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Берём по 3 значения угла, сдвига и масштаба, <code>itertools.product</code> перебирает все сочетания. Есть ли среди 27 вариантов сам оригинал? Нужен ли он в датасете?</p>
+      <div class="note"><span class="label">Подумайте</span><p>Одинаков ли результат для порядков <code>rotate → shift → scale</code> и <code>scale → rotate → shift</code>? Проверьте на одной картинке.</p></div>
+      <div class="card stack" style="gap:10px">
+        <p class="small muted">Калькулятор: хватит ли до 10&nbsp;000?</p>
+        <div class="calc">
+          <label for="cN">фото<input id="cN" type="number" min="1" value="800"></label>
+          <label for="cA">углов<input id="cA" type="number" min="1" value="3"></label>
+          <label for="cS">сдвигов<input id="cS" type="number" min="1" value="3"></label>
+          <label for="cK">масштабов<input id="cK" type="number" min="1" value="3"></label>
+        </div>
+        <p class="calc-out" id="cOut"></p>
+      </div>
+      <p class="small muted">Мало фото в группе? Возьмите по 4 значения: 4 × 4 × 4 = 64 варианта на фото.</p>
+    </div>
+<pre><code class="language-python">from itertools import product
+
+ANGLES = ___    # сколько значений и какие? Вспомните песочницу
+SHIFTS = ___    # подсказка: сдвиг — это пара (dx, dy)
+SCALES = ___
+
+def augment_all(img):
+    """Все сочетания параметров → пары (имя, картинка)."""
+    for ___ in product(___):
+        out = ___       # в каком порядке применять функции?
+        yield ___       # имя должно однозначно описывать параметры
+
+# Цикл по files из шага 1 напишите сами.
+# Требования:
+#   - класс картинки сохраняется (папка augmented/&lt;класс&gt;/);
+#   - имя файла = имя исходника + параметры;
+#   - в конце печатаем ожидаемое и реальное число файлов.
+expected = ___
+real = ___          # посчитайте файлы на диске, а не счётчиком</code></pre>
+  </div>
+</section>
+
+<!-- 20 ─────────── STEP 9 -->
+<section class="slide" id="step-9" data-name="Шаг 9">
+  <div>
+    <p class="eyebrow syn">Практика · шаг 9 из 10 · задание 1</p>
+    <h2>RGBA: объект без фона и вклейка</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>В PNG бывает 4-й канал <b>A</b> (альфа): 0 — пусто, 255 — объект. Теперь крутим не весь кадр, а сам объект, и углы остаются прозрачными, без чёрных полос.</p>
+      <div class="pair" style="grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,1fr)">
+        <figure><div class="checker"><canvas class="cv clear" width="240" height="240" data-kind="obj"></canvas></div><figcaption>объект</figcaption></figure>
+        <div class="op" style="font-size:20px">+</div>
+        <figure><canvas class="cv" width="240" height="240" data-kind="bg" data-bg="3"></canvas><figcaption>фон</figcaption></figure>
+        <div class="op" style="font-size:20px">=</div>
+        <figure><canvas class="cv" width="240" height="240" data-kind="synth" data-seed="21" data-bg="3"></canvas><figcaption>paste_on</figcaption></figure>
+      </div>
+      <div class="note syn"><span class="label">Где взять объекты</span><p>Сфотографируйте предмет и удалите фон (например, библиотекой <code>rembg</code> или в любом редакторе). Сохраните в PNG.</p></div>
+    </div>
+<pre><code class="language-python">from PIL import Image
+
+def load_rgba(path):
+    """Каналы R, G, B + A (прозрачность)."""
+    return Image.open(path).convert("RGBA")
+
+def transform_object(obj, angle, k, flip=False):
+    """Крутим, масштабируем и отражаем сам объект."""
+    # Здесь rotate нужен с expand=True.
+    # Почему, если в шаге 4 мы ставили False?
+    # Чем заполнятся новые углы у картинки RGBA?
+    ...
+    # Что будет при очень маленьком k? Защитите размер от нуля.
+    ...
+
+def paste_on(bg, obj, x, y):
+    """Вклеить объект в точку (x, y) с учётом прозрачности."""
+    canvas = bg.copy()
+    # У Image.paste есть параметр mask.
+    # Попробуйте вклеить БЕЗ маски и С маской.
+    # Что происходит с прозрачной частью в первом случае?
+    ...
+    return canvas
+
+# Вопрос: сработает ли paste, если x отрицательный?
+# Проверьте, прежде чем писать генератор.</code></pre>
+  </div>
+</section>
+
+<!-- 21 ─────────── STEP 10a -->
+<section class="slide" id="step-10" data-name="Шаг 10">
+  <div>
+    <p class="eyebrow syn">Практика · шаг 10 из 10 · задание 1</p>
+    <h2>Генератор: один синтетический кадр</h2>
+  </div>
+  <div class="content step wide">
+    <div class="stack">
+      <p>Собираем кадр из всего, что уже умеем:</p>
+      <ul class="dots small">
+        <li>случайный кусок фона — <b>обрезка</b></li>
+        <li>объект 25–60&nbsp;% кадра — <b>масштаб</b></li>
+        <li>±30° и флип — <b>поворот</b></li>
+        <li>случайное место, можно чуть за край — <b>сдвиг</b></li>
+      </ul>
+      <div class="note syn"><span class="label">Разметка бесплатно</span><p><code>getbbox()</code> по альфа-каналу даёт рамку объекта. Её сразу пишем в таблицу.</p></div>
+    </div>
+<pre><code class="language-python">import random
+SIZE = 512
+
+def random_bg(bg, rng):
+    """Случайный квадрат фона → SIZE × SIZE."""
+    # 1) сторона s: от 60 до 100 % МЕНЬШЕЙ стороны фона;
+    # 2) x, y — так, чтобы квадрат целиком лежал внутри фона;
+    # 3) crop → resize.
+    ...
+
+def make_sample(obj, bg, rng):
+    """Возвращает (кадр, box), где box = (x1, y1, x2, y2)."""
+    canvas = random_bg(bg, rng)
+
+    # k: объект должен занимать 25–60 % кадра.
+    #    Через какие величины выразить k? (SIZE, размер obj)
+    # поворот ±30°, флип с вероятностью 0.5 — transform_object
+
+    # x, y: объект может вылезать за край не больше чем на 1/4.
+    #    Какие границы дать randint? Сначала нарисуйте на бумаге.
+
+    # box: o.getchannel("A").getbbox() даёт рамку В КООРДИНАТАХ
+    #    ОБЪЕКТА. Как перевести её в координаты кадра?
+    #    Что делать, если часть объекта за краем?
+    ...
+    return canvas, box</code></pre>
+  </div>
+</section>
+
+<!-- 22 ─────────── STEP 10b -->
+<section class="slide" data-name="Шаг 10, продолжение">
+  <div>
+    <p class="eyebrow syn">Практика · шаг 10 из 10 · задание 1</p>
+    <h2>4000 кадров и таблица разметки</h2>
+  </div>
+  <div class="content step wide" style="grid-template-columns:minmax(0,.9fr) minmax(0,1.6fr)">
+    <div class="stack" style="gap:12px">
+      <div class="sheet" id="synthGrid"></div>
+      <div class="row"><button class="btn primary" id="synthAgain">Сгенерировать ещё</button><label class="row small" style="gap:6px"><input type="checkbox" id="synthBoxes" checked style="accent-color:var(--accent)"> рамки</label></div>
+      <p class="formula">10 объектов × 10 фонов = 100 пар<br>100 пар × 40 вариантов = 4000</p>
+    </div>
+<pre><code class="language-python">import csv
+from pathlib import Path
+
+objects = ___       # 10 картинок RGBA  (в каком порядке? важно ли?)
+backgrounds = ___   # 10 фонов RGB
+
+OUT = Path("synthetic")
+rng = random.Random(42)
+rows = []
+for i in range(4000):
+    # Каждая из 100 пар «объект × фон» должна встретиться
+    # одинаковое число раз. Как получить oi и bi из одного i?
+    # Подсказка: вспомните // и %.
+    oi, bi = ___, ___
+    img, box = make_sample(objects[oi], backgrounds[bi], rng)
+    ...   # сохранить кадр, добавить строку в rows
+
+# Запишите rows в labels.csv:  file, class, x1, y1, x2, y2
+
+# Самопроверка разметки:
+#   возьмите 5 случайных строк из labels.csv,
+#   нарисуйте рамки через ImageDraw.rectangle
+#   и убедитесь глазами, что они охватывают объект.
+# Затем проверьте кодом: сколько раз встретилась каждая пара?</code></pre>
+  </div>
+</section>
+
+<!-- 23 ─────────── PITFALLS -->
+<section class="slide" data-name="Частые ошибки">
+  <div>
+    <p class="eyebrow">Перед сдачей</p>
+    <h2>Пять ошибок, которые портят датасет</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:40px">
+    <ul class="clean small" style="gap:14px">
+      <li><b>Аугментация до разделения на train и test.</b> Копии одного фото попадают и в обучение, и в проверку, метрика завышена. Сначала делим, потом аугментируем только train.</li>
+      <li><b>Изменённый тест.</b> Тестовую выборку не аугментируем и не заменяем синтетикой. Проверяем на реальных, нетронутых фото.</li>
+      <li><b>Повернули картинку, забыли рамку.</b> В детекции рамки и маски преобразуются вместе с изображением.</li>
+      <li><b>Не посмотрели глазами.</b> Чёрные углы, объект за кадром, пустые кадры видны сразу на сетке 5 × 5.</li>
+      <li><b>Забыли про диск и seed.</b> 21&nbsp;600 JPEG по ~60&nbsp;КБ — это около 1,3&nbsp;ГБ. Фиксированный seed делает результат повторяемым.</li>
+    </ul>
+    <div class="stack" style="gap:14px">
+<pre><code class="language-python">def contact_sheet(paths, n=5, cell=128):
+    """Сетка n × n случайных картинок для проверки."""
+    sheet = Image.new("RGB", (___, ___))
+    for i, p in enumerate(random.sample(paths, n * n)):
+        im = ___            # открыть и привести к cell × cell
+        # i-я картинка: в какой она строке и каком столбце?
+        # Какой из них даёт //, а какой %?
+        sheet.paste(im, (___, ___))
+    return sheet
+
+# Что будет, если в paths меньше n * n файлов?
+# Сделайте так, чтобы функция не падала.</code></pre>
+      <div class="note"><span class="label">В реальных проектах</span><p>Аугментируют «на лету» при обучении: <code>torchvision.transforms</code>, <code>Albumentations</code>. Здесь сохраняем на диск, чтобы увидеть результат и посчитать файлы.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 ─────────── TASKS -->
+<section class="slide" data-name="Задания">
+  <div>
+    <p class="eyebrow">Итог</p>
+    <h2>Задания</h2>
+  </div>
+  <div class="content stack" style="gap:18px">
+    <div class="g2" style="gap:24px">
+      <div class="card task">
+        <span class="pts">Задание 1 · 1 балл</span>
+        <h3>Создайте синтетические изображения</h3>
+        <ul class="dots">
+          <li>10 объектов в RGBA (PNG без фона) и 10 фонов.</li>
+          <li>Преобразования: поворот, сдвиг, подстановка фона, обрезка.</li>
+          <li>Всё оформлено функциями: <code>load_rgba</code>, <code>transform_object</code>, <code>random_bg</code>, <code>paste_on</code>, <code>make_sample</code>.</li>
+          <li>Бонус: <code>labels.csv</code> с рамками объектов.</li>
+        </ul>
+        <p class="formula">10 × 10 пар × 40 вариантов = <b>4000</b></p>
+        <p class="small muted">Опора: <button class="link" data-go="step-9">шаг 9</button>, <button class="link" data-go="step-10">шаг 10</button></p>
+      </div>
+      <div class="card task">
+        <span class="pts">Задание 2 · 1 балл</span>
+        <h3>Аугментация датасета вашей группы</h3>
+        <ul class="dots">
+          <li>Датасет группы, больше 10&nbsp;000 изображений на выходе.</li>
+          <li>Собственные функции: <code>rotate</code>, <code>shift</code>, <code>scale</code>.</li>
+          <li>Каждый параметр — несколько значений, перебираем все сочетания.</li>
+          <li>Сохраняйте структуру папок по классам.</li>
+        </ul>
+        <p class="formula">3 × 3 × 3 = 27 на фото · 800 × 27 = <b>21&nbsp;600</b></p>
+        <p class="small muted">Опора: <button class="link" data-go="step-1">шаги 1–8</button>. Фото меньше 371? Берите по 4 значения (64 на фото).</p>
+      </div>
+    </div>
+    <div class="note"><span class="label">Что показать при сдаче</span><p>Код функций · вывод с числом созданных файлов · сетку 5 × 5 случайных результатов · для задания 1 файл <code>labels.csv</code></p></div>
+  </div>
+</section>
+
+</main>
+</div>
+<nav class="bar" aria-label="Навигация по слайдам">
+  <button id="prev" aria-label="Предыдущий слайд">←</button>
+  <span class="counter" id="counter">1 / 24</span>
+  <button id="next" aria-label="Следующий слайд">→</button>
+  <div class="progress"><i id="prog"></i></div>
+  <span class="hint" id="slideName"></span>
+  <button id="fs" aria-label="Во весь экран">⛶</button>
+</nav>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function(){
+/* ================= deck ================= */
+const root=document.documentElement;
+const slides=[...document.querySelectorAll('.slide')];
+const deck=document.getElementById('deck'), vp=document.getElementById('viewport');
+let cur=0;
+const mq=matchMedia('(max-width: 760px)');
+function setMode(){
+  root.classList.toggle('flow-mode',mq.matches);
+  root.classList.toggle('deck-mode',!mq.matches);
+  fit();
+}
+function fit(){
+  if(mq.matches) return;
+  const s=Math.min(vp.clientWidth/1280, vp.clientHeight/720)*0.965;
+  deck.style.setProperty('--s', s>0?s:1);
+}
+function go(i){
+  i=Math.max(0,Math.min(slides.length-1,i));
+  slides[cur].classList.remove('active');
+  cur=i; slides[cur].classList.add('active');
+  document.getElementById('counter').textContent=(cur+1)+' / '+slides.length;
+  document.getElementById('prog').style.width=((cur+1)/slides.length*100)+'%';
+  document.getElementById('slideName').textContent=slides[cur].dataset.name||'';
+  try{history.replaceState(null,'','#'+(cur+1))}catch(e){}
+}
+function goTo(id){
+  const el=document.getElementById(id); if(!el) return;
+  if(mq.matches){ el.scrollIntoView({behavior:'smooth'}); return; }
+  go(slides.indexOf(el));
+}
+document.getElementById('prev').onclick=()=>go(cur-1);
+document.getElementById('next').onclick=()=>go(cur+1);
+document.getElementById('fs').onclick=()=>{
+  try{ const p=document.fullscreenElement?document.exitFullscreen():root.requestFullscreen(); p&&p.catch&&p.catch(()=>{}); }catch(e){}
+};
+document.addEventListener('keydown',e=>{
+  if(mq.matches) return;
+  const tag=(e.target.tagName||'');
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') return;
+  if(['ArrowRight','PageDown'].includes(e.key)||(e.key===' '&&tag!=='BUTTON')){e.preventDefault();go(cur+1)}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(cur-1)}
+  else if(e.key==='Home'){go(0)} else if(e.key==='End'){go(slides.length-1)}
+});
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.go)));
+addEventListener('resize',fit);
+mq.addEventListener?mq.addEventListener('change',setMode):mq.addListener(setMode);
+setMode();
+const h=parseInt((location.hash||'').slice(1),10);
+slides[0].classList.add('active');
+go(h>0?h-1:0);
+
+if(window.hljs){ document.querySelectorAll('pre code.language-python').forEach(el=>hljs.highlightElement(el)); }
+
+/* ================= no-copy for code ================= */
+const toast=document.createElement('div'); toast.className='toast'; toast.hidden=true; toast.setAttribute('role','status');
+document.body.appendChild(toast); let tt;
+function say(msg){toast.textContent=msg;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,2200)}
+const inPre=n=>n&&(n.nodeType===1?n:n.parentElement)?.closest?.('pre');
+function selTouchesCode(){
+  const s=getSelection(); if(!s||s.isCollapsed) return false;
+  if(inPre(s.anchorNode)||inPre(s.focusNode)) return true;
+  return [...document.querySelectorAll('pre')].some(p=>s.containsNode(p,true));
+}
+['copy','cut'].forEach(ev=>document.addEventListener(ev,e=>{
+  if(!selTouchesCode()) return;
+  e.preventDefault();
+  try{e.clipboardData.setData('text/plain','Код из презентации не копируется. Наберите его сами.')}catch(_){}
+  say('Код не копируется: набирайте и думайте над пропусками');
+}));
+document.addEventListener('contextmenu',e=>{if(inPre(e.target)){e.preventDefault();say('Код не копируется')}});
+document.addEventListener('selectstart',e=>{if(inPre(e.target)) e.preventDefault()});
+document.addEventListener('dragstart',e=>{if(inPre(e.target)) e.preventDefault()});
+
+/* ================= quizzes ================= */
+const QUIZ={
+  match:{opts:[['syn','Синтетика ок'],['real','Только реальные']],items:[
+    ['Распознавание автомобильных номеров: нужно 50 000 размеченных кадров','syn','Номер легко отрисовать шрифтом на фото машины, а правильный текст мы знаем заранее.'],
+    ['Автопилот должен замечать пешехода ночью в метель','syn','Такие сцены редкие и опасные. Их делают в симуляторе, потом дообучают на реальных записях.'],
+    ['Тестовая выборка, по которой решают, выпускать ли модель','real','Тест должен показывать качество в реальном мире. Синтетика в тесте завышает метрики.'],
+    ['Детектор брака: на 10 000 деталей всего 15 фото с трещинами','syn','Трещины дорисовывают или вклеивают на чистые детали, чтобы выровнять классы.'],
+    ['Квартальный отчёт о продажах магазина для руководства','real','Это факты, а не обучение модели. Придуманные строки в отчёте — фальсификация.'],
+    ['Клиническое испытание: доказать, что модель находит опухоль на КТ','real','Эффективность доказывают на реальных пациентах. Синтетика допустима только как добавка при обучении.'],
+    ['Робот-манипулятор учится брать предметы со стола','syn','Миллионы попыток в симуляторе дёшевы и безопасны. Настоящий робот столько не выдержит.'],
+    ['Фото с места ДТП для страховой экспертизы','real','Юридически значимые материалы должны быть подлинными. Генерация здесь недопустима.']
+  ]},
+  aug:{opts:[['safe','Безопасно'],['bad','Меняет метку']],items:[
+    ['Кошки и собаки → зеркальный флип по горизонтали','safe','Отражённая кошка остаётся кошкой.'],
+    ['Рукописные цифры → поворот на 180°','bad','6 превращается в 9. Для цифр подходят повороты на ±10–15°.'],
+    ['Знак «поворот налево» → флип по горизонтали','bad','Стрелка укажет направо: картинка стала другим классом.'],
+    ['Спутниковые снимки полей → поворот на 90°','safe','У снимка сверху нет «верха»: поле остаётся полем при любом повороте.'],
+    ['Рентген грудной клетки → флип по горизонтали','bad','Сердце окажется справа. Модель учит анатомию, которой почти не бывает.'],
+    ['Детекция людей → сдвиг кадра на 30 px','safe','Безопасно, если рамки тоже сдвинуть на 30 px.'],
+    ['Спелые и зелёные бананы → сильный сдвиг оттенка','bad','Класс определяется цветом: жёлтый банан станет зелёным.'],
+    ['Сканы документов для OCR → зеркальный флип','bad','Зеркальных букв в документах не бывает, «Я» превращается в «R».']
+  ]}
+};
+function buildQuiz(el){
+  const q=QUIZ[el.dataset.quiz], slide=el.closest('.slide'), scoreEl=slide.querySelector('[data-score]');
+  let answered=0, right=0;
+  const upd=()=>{scoreEl.textContent=answered<q.items.length?`Отвечено ${answered} из ${q.items.length}`:`Верно ${right} из ${q.items.length}`};
+  el.innerHTML='';
+  q.items.forEach(([text,ans,why])=>{
+    const c=document.createElement('div'); c.className='qcard';
+    const p=document.createElement('p'); p.className='q'; p.textContent=text; c.appendChild(p);
+    const b=document.createElement('div'); b.className='btns';
+    const w=document.createElement('p'); w.className='why'; w.hidden=true;
+    q.opts.forEach(([key,label])=>{
+      const btn=document.createElement('button'); btn.type='button'; btn.textContent=label;
+      btn.onclick=()=>{
+        const ok=key===ans; answered++; if(ok) right++;
+        c.classList.add(ok?'right':'wrong'); btn.classList.add('picked');
+        b.querySelectorAll('button').forEach(x=>x.disabled=true);
+        w.innerHTML=''; const v=document.createElement('span'); v.className='verdict';
+        v.textContent=ok?'Верно. ':'Нет. '; w.appendChild(v); w.appendChild(document.createTextNode(why)); w.hidden=false; upd();
+      };
+      b.appendChild(btn);
+    });
+    c.appendChild(b); c.appendChild(w); el.appendChild(c);
+  });
+  upd();
+  slide.querySelector('[data-reset]').onclick=()=>buildQuiz(el);
+}
+document.querySelectorAll('[data-quiz]').forEach(buildQuiz);
+
+/* ================= calculator ================= */
+const cIds=['cN','cA','cS','cK'];
+function calc(){
+  const [n,a,s,k]=cIds.map(id=>Math.max(0,parseInt(document.getElementById(id).value,10)||0));
+  const per=a*s*k, tot=n*per, ok=tot>10000;
+  const out=document.getElementById('cOut');
+  out.innerHTML='';
+  const line=document.createElement('span');
+  line.textContent=`${a} × ${s} × ${k} = ${per} на фото · ${n.toLocaleString('ru-RU')} × ${per} = `;
+  const bb=document.createElement('b'); bb.textContent=tot.toLocaleString('ru-RU');
+  const tg=document.createElement('span'); tg.className='tag '+(ok?'ok':'bad'); tg.style.marginLeft='10px';
+  tg.textContent=ok?'больше 10 000':'мало, добавьте значений';
+  out.append(line,bb,tg);
+}
+cIds.forEach(id=>document.getElementById(id).addEventListener('input',calc)); calc();
+
+/* ================= image engine ================= */
+function rng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let OBJ,OBJ_BOX,BGS=[];
+function makeObject(){
+  const c=document.createElement('canvas'); c.width=c.height=240; const g=c.getContext('2d');
+  g.fillStyle='#d4d9df'; g.beginPath(); g.ellipse(112,202,94,17,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#b8bec6'; g.beginPath(); g.ellipse(112,198,62,9,0,0,Math.PI*2); g.fill();
+  g.strokeStyle='#d8621a'; g.lineWidth=15; g.beginPath(); g.ellipse(160,124,32,34,0,-Math.PI/2,Math.PI/2); g.stroke();
+  const grd=g.createLinearGradient(52,0,172,0); grd.addColorStop(0,'#f59a3a'); grd.addColorStop(.7,'#ef8424'); grd.addColorStop(1,'#cf6415');
+  g.fillStyle=grd; g.beginPath(); g.moveTo(50,72); g.lineTo(174,72); g.lineTo(160,186); g.quadraticCurveTo(112,204,64,186); g.closePath(); g.fill();
+  g.fillStyle='#b9530f'; g.beginPath(); g.ellipse(112,72,62,12,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#5a2c0c'; g.beginPath(); g.ellipse(112,74,52,8,0,0,Math.PI*2); g.fill();
+  g.fillStyle='#fff'; g.font='700 38px Unbounded, "Golos Text", sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('ML',108,132);
+  g.strokeStyle='rgba(140,150,160,.85)'; g.lineWidth=5; g.lineCap='round';
+  for(const x of [88,114,140]){g.beginPath();g.moveTo(x,56);g.bezierCurveTo(x-14,42,x+14,28,x,8);g.stroke();}
+  return c;
+}
+function alphaBox(c){
+  const w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=0,y1=0;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+  return [x0,y0,x1+1,y1+1];
+}
+function makeBg(i){
+  const S=480,c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d'), r=rng(i*977+13);
+  if(i===0){ // wood table
+    g.fillStyle='#8b5a32'; g.fillRect(0,0,S,S);
+    for(let k=0;k<55;k++){g.strokeStyle=`rgba(${50+r()*50|0},${28+r()*22|0},12,${.18+r()*.35})`;g.lineWidth=1+r()*5;const y0=r()*S;g.beginPath();g.moveTo(0,y0);for(let x=0;x<=S;x+=24)g.lineTo(x,y0+Math.sin(x/80+k)*7+Math.sin(x/23+k*2)*1.5);g.stroke();}
+    g.fillStyle='rgba(0,0,0,.18)'; for(let y=0;y<S;y+=120) g.fillRect(0,y,S,2);
+  }else if(i===1){ // sky
+    const gr=g.createLinearGradient(0,0,0,S); gr.addColorStop(0,'#3f79c9'); gr.addColorStop(1,'#cfe3f4'); g.fillStyle=gr; g.fillRect(0,0,S,S);
+    for(let k=0;k<5;k++){const cx=r()*S,cy=40+r()*S*.55;g.fillStyle='rgba(255,255,255,.85)';for(let j=0;j<7;j++){g.beginPath();g.arc(cx+(r()-.5)*110,cy+(r()-.5)*28,18+r()*26,0,7);g.fill();}}
+    g.fillStyle='#5f7f4a'; g.beginPath(); g.moveTo(0,S); for(let x=0;x<=S;x+=20) g.lineTo(x,S-60-Math.sin(x/60)*18-r()*6); g.lineTo(S,S); g.fill();
+  }else if(i===2){ // tiles
+    const t=60; for(let y=0;y<S;y+=t)for(let x=0;x<S;x+=t){g.fillStyle=((x+y)/t)%2?'#c9c3b4':'#e1dccf';g.fillRect(x,y,t,t);g.fillStyle=`rgba(0,0,0,${r()*.06})`;g.fillRect(x,y,t,t);}
+    g.strokeStyle='#8e877a'; g.lineWidth=2; for(let p=0;p<=S;p+=t){g.beginPath();g.moveTo(p,0);g.lineTo(p,S);g.moveTo(0,p);g.lineTo(S,p);g.stroke();}
+  }else if(i===3){ // grass
+    g.fillStyle='#3d7431'; g.fillRect(0,0,S,S);
+    for(let k=0;k<2600;k++){const x=r()*S,y=r()*S,l=6+r()*14;g.strokeStyle=`hsl(${95+r()*30},${40+r()*25}%,${22+r()*28}%)`;g.lineWidth=1+r()*1.6;g.beginPath();g.moveTo(x,y);g.lineTo(x+(r()-.5)*6,y-l);g.stroke();}
+  }else{ // fabric
+    g.fillStyle='#6f3752'; g.fillRect(0,0,S,S);
+    g.save(); g.rotate(Math.PI/4);
+    for(let x=-S;x<S*1.5;x+=34){g.fillStyle='rgba(255,255,255,.10)';g.fillRect(x,-S,13,S*3);}
+    g.rotate(Math.PI/2);
+    for(let x=-S;x<S*1.5;x+=34){g.fillStyle='rgba(0,0,0,.12)';g.fillRect(x,-S*2,7,S*4);}
+    g.restore();
+  }
+  return c;
+}
+const baseCache={};
+function getBase(bg,W){
+  const key=bg+'_'+W; if(baseCache[key]) return baseCache[key];
+  const c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d');
+  if(bg==null||bg<0){g.fillStyle='#cfd5da';g.fillRect(0,0,W,W);} else g.drawImage(BGS[bg],0,0,W,W);
+  const s=W*.62; g.drawImage(OBJ,(W-s)/2,(W-s)/2+W*.04,s,s);
+  return baseCache[key]=c;
+}
+function renderAug(cv,p){
+  const W=cv.width,g=cv.getContext('2d'),u=W/480,base=getBase(p.bg,W);
+  g.setTransform(1,0,0,1,0,0); g.fillStyle='#000'; g.fillRect(0,0,W,W);
+  if(p.crop){const[x,y,s]=p.crop; g.drawImage(base,x*W,y*W,s*W,s*W,0,0,W,W); return;}
+  g.save(); g.translate(W/2+(p.dx||0)*u, W/2+(p.dy||0)*u); g.rotate(-(p.angle||0)*Math.PI/180);
+  const k=p.scale||1; g.scale(k*(p.flipH?-1:1),k*(p.flipV?-1:1)); g.drawImage(base,-W/2,-W/2,W,W); g.restore();
+  if(p.showCrop){const[x,y,s]=p.showCrop; g.save(); g.fillStyle='rgba(0,0,0,.45)';
+    g.fillRect(0,0,W,y*W); g.fillRect(0,(y+s)*W,W,W); g.fillRect(0,y*W,x*W,s*W); g.fillRect((x+s)*W,y*W,W,s*W);
+    g.strokeStyle='#fff'; g.lineWidth=2.5*u; g.setLineDash([10*u,7*u]); g.strokeRect(x*W,y*W,s*W,s*W); g.restore();}
+}
+function renderSynth(cv,seed,showBox,forceBg){
+  const r=rng(seed),W=cv.width,g=cv.getContext('2d'); g.setTransform(1,0,0,1,0,0);
+  const bi=forceBg!=null?forceBg:Math.floor(r()*BGS.length), B=BGS[bi], S=B.width;
+  const s=S*(.6+r()*.4), sx=r()*(S-s), sy=r()*(S-s);
+  g.drawImage(B,sx,sy,s,s,0,0,W,W);
+  const size=W*(.32+r()*.35), k=size/240, a=(r()*60-30)*Math.PI/180, flip=r()<.5;
+  const cx=W*(.12+r()*.76), cy=W*(.12+r()*.76);
+  g.save(); g.translate(cx,cy); g.rotate(-a); g.scale(flip?-k:k,k); g.drawImage(OBJ,-120,-120); g.restore();
+  if(!showBox) return;
+  const [x0,y0,x1,y1]=OBJ_BOX, c=Math.cos(-a), sn=Math.sin(-a);
+  const pts=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>{x=(x-120)*k*(flip?-1:1);y=(y-120)*k;return[cx+x*c-y*sn,cy+x*sn+y*c]});
+  const bx0=Math.max(0,Math.min(...pts.map(p=>p[0]))), by0=Math.max(0,Math.min(...pts.map(p=>p[1])));
+  const bx1=Math.min(W,Math.max(...pts.map(p=>p[0]))), by1=Math.min(W,Math.max(...pts.map(p=>p[1])));
+  const lw=Math.max(2,W/160);
+  g.strokeStyle='#FFD23F'; g.lineWidth=lw; g.strokeRect(bx0+lw/2,by0+lw/2,bx1-bx0-lw,by1-by0-lw);
+  const fs=Math.max(11,W/26); g.font=`600 ${fs}px "JetBrains Mono", monospace`;
+  const label='cup', tw=g.measureText(label).width+fs*.6, ly=by0>fs*1.4?by0-fs*1.3:by0;
+  g.fillStyle='#FFD23F'; g.fillRect(bx0,ly,tw,fs*1.3); g.fillStyle='#1a1a1a'; g.textBaseline='middle'; g.fillText(label,bx0+fs*.3,ly+fs*.68);
+}
+function randomAug(r){return{bg:Math.floor(r()*5),flipH:r()<.5,angle:Math.round(r()*50-25),dx:Math.round(r()*120-60),dy:Math.round(r()*80-40),scale:+(0.8+r()*.45).toFixed(2)}}
+
+function fillSheet(el,n,size,seed0,mode,boxes){
+  if(el.children.length!==n){el.innerHTML='';for(let i=0;i<n;i++){const c=document.createElement('canvas');c.className='cv';c.width=c.height=size;el.appendChild(c);}}
+  [...el.children].forEach((c,i)=>{
+    const seed=seed0+i*101;
+    c.dataset.seed=seed;
+    if(mode==='mix'&&i%3===1) renderAug(c,randomAug(rng(seed))); else renderSynth(c,seed,boxes);
+  });
+}
+
+function drawAll(){
+  OBJ=makeObject(); OBJ_BOX=alphaBox(OBJ);
+  BGS=[0,1,2,3,4].map(makeBg);
+  document.querySelectorAll('canvas[data-aug]').forEach(c=>{try{renderAug(c,JSON.parse(c.dataset.aug))}catch(e){}});
+  document.querySelectorAll('canvas[data-kind]').forEach(c=>{
+    const g=c.getContext('2d'),W=c.width;
+    if(c.dataset.kind==='obj'){g.clearRect(0,0,W,W);g.drawImage(OBJ,0,0,W,W);}
+    else if(c.dataset.kind==='bg'){g.drawImage(BGS[+c.dataset.bg],0,0,W,W);}
+    else renderSynth(c,+c.dataset.seed,!!c.dataset.box,c.dataset.bg!=null?+c.dataset.bg:null);
+  });
+  // title sheet
+  const ts=document.getElementById('titleSheet'); let tSeed=11;
+  fillSheet(ts,9,240,tSeed,'mix',false);
+  document.getElementById('titleAgain').onclick=()=>{tSeed=(Math.random()*1e6)|0;fillSheet(ts,9,240,tSeed,'mix',false)};
+  // synth grid
+  const sg=document.getElementById('synthGrid'), sb=document.getElementById('synthBoxes'); let sSeed=500;
+  const drawS=()=>fillSheet(sg,6,240,sSeed,'synth',sb.checked);
+  drawS();
+  document.getElementById('synthAgain').onclick=()=>{sSeed=(Math.random()*1e6)|0;drawS()};
+  sb.onchange=drawS;
+  initPlayground();
+}
+
+/* ================= playground ================= */
+function initPlayground(){
+  const cv=document.getElementById('pgCanvas'), $=id=>document.getElementById(id);
+  const ids={bg:'pgBg',flipH:'pgFlipH',flipV:'pgFlipV',angle:'pgAngle',dx:'pgDx',dy:'pgDy',scale:'pgScale'};
+  function read(){return{bg:+$('pgBg').value,flipH:$('pgFlipH').checked,flipV:$('pgFlipV').checked,angle:+$('pgAngle').value,dx:+$('pgDx').value,dy:+$('pgDy').value,scale:+$('pgScale').value}}
+  function draw(){
+    const p=read(); renderAug(cv,p);
+    $('oAngle').textContent=p.angle; $('oDx').textContent=p.dx; $('oDy').textContent=p.dy; $('oScale').textContent=p.scale.toFixed(2);
+    let e='img';
+    if(p.flipH) e=`flip_h(${e})`;
+    if(p.flipV) e=`flip_v(${e})`;
+    if(p.scale!==1) e=`scale(${e}, ${p.scale})`;
+    if(p.angle) e=`rotate(${e}, ${p.angle})`;
+    if(p.dx||p.dy) e=`shift(${e}, ${p.dx}, ${p.dy})`;
+    $('pgCode').textContent=e;
+  }
+  Object.values(ids).forEach(id=>$(id).addEventListener('input',draw));
+  $('pgRand').onclick=()=>{const p=randomAug(Math.random);$('pgBg').value=p.bg;$('pgFlipH').checked=p.flipH;$('pgFlipV').checked=Math.random()<.15;$('pgAngle').value=p.angle;$('pgDx').value=Math.round(p.dx/5)*5;$('pgDy').value=Math.round(p.dy/5)*5;$('pgScale').value=(Math.round(p.scale*20)/20).toFixed(2);draw()};
+  $('pgReset').onclick=()=>{$('pgBg').value=0;$('pgFlipH').checked=false;$('pgFlipV').checked=false;$('pgAngle').value=0;$('pgDx').value=0;$('pgDy').value=0;$('pgScale').value=1;draw()};
+  draw();
+}
+
+const fontsReady=(document.fonts&&document.fonts.load)?Promise.all([document.fonts.load('700 38px Unbounded'),document.fonts.load('600 14px "JetBrains Mono"')]).catch(()=>{}):Promise.resolve();
+Promise.race([fontsReady,new Promise(r=>setTimeout(r,1500))]).then(drawAll);
+})();
+</script>
+
+</body>
+</html>
