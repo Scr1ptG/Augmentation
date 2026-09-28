@@ -74,8 +74,9 @@ html.flow-mode .deck{position:static;width:auto;height:auto;transform:none;borde
 html.flow-mode .slide{position:relative;inset:auto;display:flex;padding:40px 0;border-bottom:1px solid var(--line);overflow:visible}
 html.flow-mode .bar{display:none}
 html.flow-mode .g2,html.flow-mode .g3,html.flow-mode .g4,html.flow-mode .step,html.flow-mode .title-grid{grid-template-columns:minmax(0,1fr)!important}
-html.flow-mode h1{font-size:34px}
-html.flow-mode h2{font-size:24px}
+html.flow-mode h1{font-size:clamp(24px,7.5vw,34px)}
+html.flow-mode h2{font-size:clamp(19px,5.6vw,24px)}
+html.flow-mode h1,html.flow-mode h2{hyphens:auto;overflow-wrap:break-word}
 
 /* ---------- type ---------- */
 .eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
@@ -235,7 +236,7 @@ table.cmp td:first-child{color:var(--muted);width:24%}
 </head>
 <body>
 
-<div class="app">
+<div class="app" lang="ru">
 <div class="viewport" id="viewport">
 <main class="deck" id="deck">
 
@@ -477,7 +478,7 @@ table.cmp td:first-child{color:var(--muted);width:24%}
     <h2>Практика: от простого к сложному</h2>
   </div>
   <div class="content stack" style="gap:20px">
-    <p class="muted" style="font-size:17px">Каждый шаг — одна функция на Python (Pillow + NumPy). Функции из шагов 1–8 собираются в задание 2, шаги 9–10 — в задание 1. В коде на слайдах есть пропуски <code>___</code>, <code>...</code> и вопросы: их заполняете вы. Код со слайдов не копируется.</p>
+    <p class="muted" style="font-size:17px">Каждый шаг — одна функция на Python (Pillow + NumPy). Функции из шагов 1–8 собираются в задание 2, шаги 9–10 — в задание 1. В коде на слайдах есть пропуски <code>___</code>, <code>...</code> и вопросы: их заполняете вы. Код со слайдов не копируется. После шага 10 — бонус: то же самое библиотекой <button class="link" data-go="alb-1">Albumentations</button> (шаги 11–13).</p>
     <ol class="road">
       <li><button data-go="step-1"><span><span class="t">Считаем датасет</span><span class="d">сколько файлов, какие классы и размеры</span></span><span class="tag">основа</span></button></li>
       <li><button data-go="step-6"><span><span class="t">Масштаб</span><span class="d">приближение и отдаление</span></span><span class="tag">задание 2</span></button></li>
@@ -922,6 +923,156 @@ for i in range(4000):
   </div>
 </section>
 
+<!-- A1 ─────────── ALBUMENTATIONS INTRO -->
+<section class="slide" id="alb-1" data-name="Albumentations">
+  <div>
+    <p class="eyebrow">Бонус · библиотека Albumentations</p>
+    <h2>То же самое, но библиотекой</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px">
+    <div class="stack" style="gap:16px">
+      <p><b>Albumentations</b> — самая популярная библиотека аугментаций изображений. В реальных проектах свои функции почти не пишут, а берут её.</p>
+      <ul class="dots small">
+        <li>больше 70 преобразований: геометрия, цвет, шум, погода, CutOut;</li>
+        <li>работает на OpenCV, поэтому быстрая;</li>
+        <li>параметры задаются диапазоном и выбираются случайно;</li>
+        <li>рамки, маски и ключевые точки пересчитываются сами.</li>
+      </ul>
+      <pre><span class="cap">установка</span><code>pip install -U albumentations      # версия 2.x</code></pre>
+      <div class="note syn"><span class="label">Для заданий 1 и 2</span><p>Нужны свои функции. Albumentations используем для сверки и как инструмент на будущее.</p></div>
+    </div>
+    <div class="tablewrap"><table class="cmp">
+      <tr><th>Ваша функция</th><th>Albumentations</th></tr>
+      <tr><td><code>flip_h</code></td><td><code>A.HorizontalFlip</code></td></tr>
+      <tr><td><code>flip_v</code></td><td><code>A.VerticalFlip</code></td></tr>
+      <tr><td><code>rotate</code></td><td><code>A.Affine(rotate=…)</code>, <code>A.Rotate</code></td></tr>
+      <tr><td><code>shift</code></td><td><code>A.Affine(translate_px=…)</code></td></tr>
+      <tr><td><code>scale</code></td><td><code>A.Affine(scale=…)</code></td></tr>
+      <tr><td><code>random_crop</code></td><td><code>A.RandomCrop</code></td></tr>
+      <tr><td><code>random_bg</code></td><td><code>A.RandomResizedCrop</code></td></tr>
+      <tr><td>цвет</td><td><code>A.RandomBrightnessContrast</code>, <code>A.HueSaturationValue</code></td></tr>
+      <tr><td>шум</td><td><code>A.GaussNoise</code>, <code>A.GaussianBlur</code></td></tr>
+      <tr><td>вырезание</td><td><code>A.CoarseDropout</code></td></tr>
+    </table></div>
+  </div>
+</section>
+
+<!-- A2 ─────────── ALBUMENTATIONS COMPOSE -->
+<section class="slide" id="alb-2" data-name="Шаг 11 · Compose">
+  <div>
+    <p class="eyebrow">Бонус · Albumentations · шаг 11</p>
+    <h2>Пайплайн: Compose и вероятность p</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Преобразования собираются в цепочку <code>A.Compose</code>. У каждого есть <code>p</code> — вероятность, что оно сработает. Параметры задаются диапазоном, и при каждом вызове выбираются заново.</p>
+      <div class="pair" style="--n:4">
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":2,"angle":-9,"dx":20,"scale":1.08}'></canvas><figcaption>вызов 1</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":2,"flipH":true,"angle":12,"dy":-25,"scale":0.9}'></canvas><figcaption>вызов 2</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":2,"angle":4,"dx":-35,"scale":1.14}'></canvas><figcaption>вызов 3</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":2,"flipH":true,"angle":-14,"dx":15,"dy":20}'></canvas><figcaption>вызов 4</figcaption></figure>
+      </div>
+      <div class="note"><span class="label">Проверь себя</span><p>Вызовите <code>aug</code> дважды на одной картинке: результат одинаковый? А если заново создать <code>Compose</code> с тем же <code>seed</code>? Как получить ровно 27 вариантов на фото?</p></div>
+    </div>
+<pre><code class="language-python">import albumentations as A
+import cv2
+
+aug = A.Compose([
+    A.HorizontalFlip(p=___),         # как часто отражать?
+    A.Affine(
+        rotate=___,                  # диапазон — кортеж (min, max)
+        translate_percent=___,
+        scale=___,
+        border_mode=cv2.BORDER_CONSTANT,
+        fill=___,                    # чем залить пустые углы?
+        p=1,
+    ),
+    ___,                             # добавьте одну цветовую аугментацию
+], seed=___)
+
+out = aug(image=img)[___]            # вызов возвращает словарь. Какой ключ?
+
+# Какие значения p у вас получились и почему?
+# Что изменится, если у Affine поставить p=0.3?</code></pre>
+  </div>
+</section>
+
+<!-- A3 ─────────── ALBUMENTATIONS VS OWN -->
+<section class="slide" id="alb-3" data-name="Шаг 12 · сверка">
+  <div>
+    <p class="eyebrow">Бонус · Albumentations · шаг 12</p>
+    <h2>Сверяем свои функции с библиотекой</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Хороший способ проверить свой код — сравнить его с эталоном. Отражение должно совпасть до пикселя. Поворот совпадёт только примерно, и важно понять почему.</p>
+      <div class="note"><span class="label">Подумайте</span>
+        <ul class="dots small">
+          <li>В какую сторону крутит положительный угол в Pillow, а в какую — в <code>A.Affine</code>? Проверьте на картинке.</li>
+          <li>Почему после поворота даже при правильном знаке <code>diff.max()</code> не равен 0?</li>
+          <li>Какой средней разницы достаточно, чтобы считать функции одинаковыми?</li>
+        </ul>
+      </div>
+    </div>
+<pre><code class="language-python">import numpy as np
+
+# 1. Отражение: должно совпасть точно
+lib_flip = A.HorizontalFlip(p=1)(image=img)["image"]
+assert np.array_equal(lib_flip, ___)          # ваша функция из шага 2
+
+# 2. Поворот: сравниваем с допуском
+mine = rotate(img, 15)                        # ваша функция из шага 4
+lib = A.Affine(rotate=___, p=1,
+               border_mode=cv2.BORDER_CONSTANT,
+               fill=0)(image=img)["image"]
+diff = np.abs(mine.astype(int) - lib.astype(int))
+print("средняя:", ___, "максимум:", ___)
+
+# 3. Сами: сверьте shift и scale.
+#    Какие параметры A.Affine нужны для каждой?
+#    Совпадает ли центр масштабирования?</code></pre>
+  </div>
+</section>
+
+<!-- A4 ─────────── ALBUMENTATIONS BBOXES -->
+<section class="slide" id="alb-4" data-name="Шаг 13 · рамки">
+  <div>
+    <p class="eyebrow">Бонус · Albumentations · шаг 13</p>
+    <h2>Рамки пересчитываются сами</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Для детекции это главное удобство библиотеки. Передаём картинку вместе с рамками, и после поворота или сдвига получаем новые координаты рамок.</p>
+      <div class="tablewrap"><table class="cmp">
+        <tr><th>Формат</th><th>Как записана рамка</th></tr>
+        <tr><td><code>pascal_voc</code></td><td>x1, y1, x2, y2 в пикселях</td></tr>
+        <tr><td><code>coco</code></td><td>x, y, ширина, высота в пикселях</td></tr>
+        <tr><td><code>yolo</code></td><td>центр x, центр y, ширина, высота в долях 0…1</td></tr>
+      </table></div>
+      <div class="pair" style="grid-template-columns:repeat(2,minmax(0,160px))">
+        <figure><canvas class="cv" width="240" height="240" data-kind="synth" data-seed="33" data-bg="0" data-box="1"></canvas><figcaption>до</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-kind="synth" data-seed="34" data-bg="0" data-box="1"></canvas><figcaption>после</figcaption></figure>
+      </div>
+    </div>
+<pre><code class="language-python">det = A.Compose(
+    [A.HorizontalFlip(p=0.5),
+     A.Affine(rotate=(-15, 15), scale=(0.8, 1.2), p=1)],
+    bbox_params=A.BboxParams(
+        format=___,            # в labels.csv задания 1 — какой формат?
+        label_fields=[___],
+        min_visibility=___,    # когда рамку лучше выбросить?
+    ),
+)
+
+res = det(image=img, bboxes=[box], labels=[cls])
+
+# Нарисуйте res["bboxes"] на res["image"] через ImageDraw.
+# Проверьте на 5 кадрах из задания 1.
+# Что вернётся в res["bboxes"], если объект целиком
+# уехал за край кадра?</code></pre>
+  </div>
+</section>
+
 <!-- 23 ─────────── PITFALLS -->
 <section class="slide" data-name="Частые ошибки">
   <div>
@@ -987,6 +1138,7 @@ for i in range(4000):
         <p class="small muted">Опора: <button class="link" data-go="step-1">шаги 1–8</button>. Фото меньше 371? Берите по 4 значения (64 на фото).</p>
       </div>
     </div>
+    <p class="small muted">Albumentations (шаги 11–13) не заменяет свои функции в заданиях. Её можно использовать для сверки результата.</p>
     <div class="note"><span class="label">Что показать при сдаче</span><p>Код функций · вывод с числом созданных файлов · сетку 5 × 5 случайных результатов · для задания 1 файл <code>labels.csv</code></p></div>
   </div>
 </section>
