@@ -1,0 +1,1437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нейросеть на своём датасете</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#E1E5E2; --paper:#F7F8F5; --surface:#FFFFFF; --ink:#16202A; --muted:#5A6572; --line:#D5DAD6;
+  --accent:#2346D8; --accent-ink:#FFFFFF; --accent-soft:#E0E6FC;
+  --amber:#9A6400; --amber-soft:#F7EACB;
+  --ok:#1C7A50; --ok-soft:#D8EFE3; --bad:#B3302A; --bad-soft:#F7DDDA;
+  --check-a:#FFFFFF; --check-b:#D9DEE3;
+  --code-bg:#17202B; --code-ink:#DCE3EA; --code-line:#26313E;
+  --hl-kw:#93A9FF; --hl-str:#E8C66F; --hl-com:#7F8C99; --hl-num:#F2A27A; --hl-fn:#7FD6B2;
+  --display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0A0E13; --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+    --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850;
+    --amber:#F0B43A; --amber-soft:#3A2D10;
+    --ok:#47BA86; --ok-soft:#133528; --bad:#EF7266; --bad-soft:#42201C;
+    --check-a:#2A333D; --check-b:#1D252E;
+    --code-bg:#0C1117; --code-line:#1E2833;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0A0E13; --paper:#121920; --surface:#19222C; --ink:#E5EAEF; --muted:#98A3AF; --line:#2A3541;
+  --accent:#8299FF; --accent-ink:#0A0E13; --accent-soft:#1E2850;
+  --amber:#F0B43A; --amber-soft:#3A2D10;
+  --ok:#47BA86; --ok-soft:#133528; --bad:#EF7266; --bad-soft:#42201C;
+  --check-a:#2A333D; --check-b:#1D252E;
+  --code-bg:#0C1117; --code-line:#1E2833;
+}
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:14px}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- deck shell ---------- */
+html.deck-mode, html.deck-mode body{height:100%;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%}
+.viewport{flex:1;position:relative;min-height:0}
+.deck{position:absolute;left:50%;top:50%;width:1280px;height:720px;
+  transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:center;
+  background:var(--paper);border-radius:14px;box-shadow:0 1px 0 var(--line),0 18px 50px rgba(10,20,30,.14);overflow:hidden}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;gap:26px;padding:50px 68px 42px;overflow:auto}
+.slide.active{display:flex}
+@media (prefers-reduced-motion: no-preference){
+  .slide.active{animation:in .28s ease-out}
+  @keyframes in{from{opacity:.35;transform:translateX(10px)}to{opacity:1;transform:none}}
+}
+.bar{display:flex;align-items:center;gap:14px;padding:10px 20px calc(10px + env(safe-area-inset-bottom,0px));
+  font-family:var(--mono);font-size:13px;color:var(--muted)}
+.bar button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--ink)}
+.bar button:hover{border-color:var(--accent)}
+.progress{flex:1;height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+.counter{font-variant-numeric:tabular-nums;min-width:64px;text-align:center}
+.hint{white-space:nowrap}
+
+/* flow mode (phones) */
+html.flow-mode body{background:var(--paper)}
+html.flow-mode .deck{position:static;width:auto;height:auto;transform:none;border-radius:0;box-shadow:none;padding-inline:16px}
+html.flow-mode .slide{position:relative;inset:auto;display:flex;padding:40px 0;border-bottom:1px solid var(--line);overflow:visible}
+html.flow-mode .bar{display:none}
+html.flow-mode .g2,html.flow-mode .g3,html.flow-mode .g4,html.flow-mode .step,html.flow-mode .title-grid{grid-template-columns:minmax(0,1fr)!important}
+html.flow-mode h1{font-size:clamp(24px,7.5vw,34px)}
+html.flow-mode h2{font-size:clamp(19px,5.6vw,24px)}
+html.flow-mode h1,html.flow-mode h2{hyphens:auto;overflow-wrap:break-word}
+
+/* ---------- type ---------- */
+.eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.eyebrow::before{content:"";width:12px;height:12px;flex:none;
+  background:conic-gradient(var(--accent) 0 25%,transparent 0 50%,var(--accent) 0 75%,transparent 0)}
+.eyebrow.syn::before{background:conic-gradient(var(--amber) 0 25%,transparent 0 50%,var(--amber) 0 75%,transparent 0)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:58px;line-height:1.06;font-weight:600}
+h2{font-size:32px;line-height:1.15;font-weight:600}
+h3{font-size:18px;line-height:1.25;font-weight:600}
+p,li{font-size:18px;line-height:1.5;margin:0}
+.lead{font-size:21px;line-height:1.45;max-width:36em}
+.muted{color:var(--muted)}
+.small,.small li{font-size:15px;line-height:1.45}
+ul.clean{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+ul.dots{margin:0;padding-left:1.1em;display:grid;gap:8px}
+code{font-family:var(--mono);font-size:.88em;background:var(--accent-soft);padding:.05em .35em;border-radius:4px}
+b{font-weight:600}
+
+/* ---------- layout ---------- */
+.content{flex:1;min-height:0}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.step{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:40px;align-items:start}
+.step.wide{grid-template-columns:minmax(0,.78fr) minmax(0,1.7fr)}
+.stack{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.note{border-left:3px solid var(--accent);padding:10px 14px;background:var(--accent-soft);border-radius:0 8px 8px 0}
+.note.syn{border-color:var(--amber);background:var(--amber-soft)}
+.note p,.note li{font-size:16px}
+.note .label{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.06em;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.tag.syn{background:var(--amber-soft);color:var(--amber)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* ---------- code ---------- */
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px 18px;overflow:auto;
+  font-family:var(--mono);font-size:13.5px;line-height:1.55;tab-size:4}
+pre code{background:none;padding:0;font-size:inherit;color:inherit}
+pre,pre *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:10;
+  background:var(--ink);color:var(--paper);font-size:14px;padding:10px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+pre.out{background:var(--surface);color:var(--ink);border:1px dashed var(--line)}
+pre .cap{display:block;color:var(--hl-com);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.hljs-keyword,.hljs-built_in{color:var(--hl-kw)}
+.hljs-string{color:var(--hl-str)}
+.hljs-comment{color:var(--hl-com);font-style:italic}
+.hljs-number,.hljs-literal{color:var(--hl-num)}
+.hljs-title{color:var(--hl-fn)}
+.hljs-subst{color:var(--code-ink)}
+
+/* ---------- canvases ---------- */
+canvas.cv{display:block;width:100%;height:auto;aspect-ratio:1;border-radius:8px;background:#000;max-width:100%}
+canvas.cv.clear{background:transparent}
+.checker{border-radius:8px;background:repeating-conic-gradient(var(--check-a) 0 25%,var(--check-b) 0 50%) 0 0/18px 18px}
+figure{margin:0;display:flex;flex-direction:column;gap:6px}
+figcaption{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:center}
+.pair{display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));gap:12px}
+.op{align-self:center;font-family:var(--display);font-size:26px;color:var(--muted);text-align:center}
+
+/* ---------- title ---------- */
+.title-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:48px;align-items:center;flex:1}
+.sheet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sheet canvas{border-radius:6px}
+.kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--surface)}
+
+/* ---------- quiz ---------- */
+.quiz{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.qcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 15px;display:flex;flex-direction:column;gap:10px}
+.qcard p.q{font-size:15.5px;line-height:1.4;font-weight:500;flex:1}
+.qcard .btns{display:flex;gap:6px;flex-wrap:wrap}
+.qcard button{flex:1;font-size:13px;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--paper);cursor:pointer;white-space:nowrap}
+.qcard button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.qcard button:disabled{cursor:default;opacity:.55}
+.qcard button.picked{opacity:1;font-weight:600}
+.qcard .why{font-size:13.5px;line-height:1.4;color:var(--muted)}
+.qcard.right{border-color:var(--ok);box-shadow:inset 0 3px 0 var(--ok)}
+.qcard.wrong{border-color:var(--bad);box-shadow:inset 0 3px 0 var(--bad)}
+.qcard .verdict{font-weight:600;color:var(--ink)}
+.qcard.right .verdict{color:var(--ok)} .qcard.wrong .verdict{color:var(--bad)}
+.qhead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.score{font-family:var(--mono);font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:14px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{color:var(--accent-ink);filter:brightness(1.08)}
+
+/* ---------- playground ---------- */
+.play{display:grid;grid-template-columns:420px minmax(0,1fr);gap:40px;align-items:start}
+.ctl{display:grid;grid-template-columns:130px minmax(0,1fr) 64px;gap:12px 14px;align-items:center}
+.ctl label{font-size:15px}
+.ctl output{font-family:var(--mono);font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.ctl select{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 8px}
+.checks{display:flex;gap:18px;grid-column:2 / 4}
+.checks label{display:flex;gap:6px;align-items:center}
+.checks input{accent-color:var(--accent);width:16px;height:16px}
+
+/* ---------- metrics ---------- */
+.dumb{display:grid;gap:0}
+.drow{display:grid;grid-template-columns:230px minmax(0,1fr) 70px;align-items:center;height:52px;border-bottom:1px solid var(--line)}
+.drow .lbl{font-size:15.5px;line-height:1.25}
+.drow .lbl small{display:block;font-size:12.5px;color:var(--muted)}
+.track{position:relative;height:100%}
+.track .grid{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 25%);opacity:.7}
+.track .seg{position:absolute;top:50%;height:4px;margin-top:-2px;background:var(--muted);opacity:.45;
+  left:calc((var(--v) - 60) / 40 * 100%);right:calc(100% - (var(--t) - 60) / 40 * 100%)}
+.track .dot{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%}
+.track .dot.t{left:calc((var(--t) - 60) / 40 * 100%);border:2.5px solid var(--muted);background:var(--paper)}
+.track .dot.v{left:calc((var(--v) - 60) / 40 * 100%);background:var(--accent)}
+.track .vnum{position:absolute;top:50%;transform:translate(-50%,-150%);left:calc((var(--v) - 60) / 40 * 100%);font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500}
+.drow .gap{font-family:var(--mono);font-size:13px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.drow.worse .dot.v{background:var(--bad)} .drow.worse .vnum{color:var(--bad)}
+.axis{display:grid;grid-template-columns:230px minmax(0,1fr) 70px;font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:6px}
+.axis .ticks{position:relative;height:16px}
+.axis .ticks span{position:absolute;transform:translateX(-50%)}
+.legend{display:flex;gap:18px;font-size:13.5px;color:var(--muted);align-items:center;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+
+/* ---------- roadmap ---------- */
+.road{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 36px;list-style:none;margin:0;padding:0;counter-reset:s}
+.road li{counter-increment:s}
+.road button{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;cursor:pointer}
+.road button:hover{border-color:var(--accent)}
+.road button::before{content:counter(s,decimal-leading-zero);font-family:var(--display);font-size:22px;color:var(--accent);font-weight:600}
+.road .t{font-size:17px;font-weight:600;display:block}
+.road .d{font-size:14px;color:var(--muted);display:block}
+
+/* ---------- calc ---------- */
+.calc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.calc label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.calc input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.calc-out{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.calc-out b{font-size:22px}
+
+/* ---------- final ---------- */
+.task{display:flex;flex-direction:column;gap:12px}
+.task h3{font-size:20px}
+.task .pts{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.task ul li{font-size:15.5px}
+.formula{font-family:var(--mono);font-size:16px;padding:10px 12px;background:var(--paper);border-radius:8px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}
+
+table.cmp{border-collapse:collapse;width:100%;font-size:15px}
+table.cmp th,table.cmp td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.35}
+table.cmp th{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+table.cmp td:first-child{color:var(--muted);width:24%}
+.tablewrap{overflow-x:auto}
+</style>
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<style>
+.qcard button{white-space:normal;text-align:left;line-height:1.3}
+.qcard .btns{flex-direction:column}
+.cnn{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cnn .blk{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.cnn .box{border-radius:6px;border:1px solid var(--line);background:var(--accent-soft);display:grid;place-items:center;font-family:var(--mono);font-size:11.5px;color:var(--accent);font-weight:500;padding:4px;line-height:1.2}
+.cnn .box.in{background:var(--amber-soft);color:var(--amber)}
+.cnn .box.out{background:var(--ok-soft);color:var(--ok)}
+.cnn .lbl{font-size:12px;line-height:1.25;color:var(--muted);max-width:96px;font-family:var(--mono)}
+.cnn .arr{color:var(--muted);font-family:var(--display)}
+.errs{display:grid;gap:9px}
+.err{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 14px}
+.err .m{font-family:var(--mono);font-size:12px;color:var(--bad);line-height:1.45;overflow-wrap:anywhere}
+.err .f{font-size:14px;line-height:1.4}
+.tall{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:22px;align-items:center}
+.exp{border-collapse:collapse;width:100%;font-size:14px}
+.exp th,.exp td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.exp th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.exp td{font-size:13.5px;line-height:1.35}
+.exp td.v{font-family:var(--display);font-weight:600;color:var(--accent);text-align:center;width:42px}
+.exp.blank td{height:30px}
+.cheat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.cheat h3{font-size:15px;margin-bottom:8px}
+.cheat ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cheat li{font-size:13.5px;line-height:1.35}
+.cheat li code{font-size:12px}
+.ptr{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ptr li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;font-size:15px;line-height:1.4}
+.ptr .n{font-family:var(--display);font-weight:600;color:var(--accent);font-size:17px;line-height:1.3}
+.loopflow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.loopflow .s{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);min-width:118px}
+.loopflow .s b{font-family:var(--display);font-size:18px;color:var(--accent)}
+.loopflow .s code{background:none;padding:0;font-size:12.5px}
+.loopflow .s span{font-size:12.5px;color:var(--muted);line-height:1.3}
+.loopflow .s.g{border-color:var(--amber);background:var(--amber-soft)} .loopflow .s.g b{color:var(--amber)}
+.loopflow .a{color:var(--muted);font-family:var(--display)}
+.splitbar{display:flex;height:54px;border-radius:10px;overflow:hidden;font-family:var(--mono);font-size:13px;font-weight:500}
+.splitbar div{display:grid;place-items:center;text-align:center;line-height:1.2}
+.splitbar .tr{flex:70;background:var(--accent);color:var(--accent-ink)}
+.splitbar .va{flex:15;background:var(--amber-soft);color:var(--amber)}
+.splitbar .te{flex:15;background:var(--ok-soft);color:var(--ok)}
+.order{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:o}
+.order li{counter-increment:o;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;line-height:1.4}
+.order li::before{content:counter(o);font-family:var(--display);font-weight:600;font-size:18px;color:var(--accent)}
+.bad-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.bad-list li{border-left:3px solid var(--bad);background:var(--bad-soft);padding:9px 12px;border-radius:0 8px 8px 0;font-size:14.5px;line-height:1.4}
+.chart{width:100%;height:auto;display:block;color:var(--ink)}
+.chart .ax{stroke:var(--line)} .chart text{fill:var(--muted);font-family:var(--mono);font-size:11px}
+.cases{display:grid;gap:8px}
+.case{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;font-size:14.5px;line-height:1.35}
+.case .tag{min-width:112px;text-align:center}
+.alb{border-collapse:collapse;width:100%;font-size:13.5px}
+.alb td{border-bottom:1px solid var(--line);padding:6px 8px;vertical-align:top;line-height:1.35}
+.alb td:first-child{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.alb code{font-size:12px}
+html.flow-mode .err,html.flow-mode .cheat,html.flow-mode .tall{grid-template-columns:minmax(0,1fr)}
+pre.sm{font-size:12.6px;line-height:1.5}
+</style>
+
+<div class="app" lang="ru">
+<div class="viewport" id="viewport">
+<main class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide" data-name="Титул">
+  <div class="title-grid">
+    <div class="stack" style="gap:24px">
+      <p class="eyebrow">Machine Learning · PyTorch + Google Colab</p>
+      <h1>Нейросеть на&nbsp;своём датасете</h1>
+      <p class="lead">Собираем свой датасет, подгоняем картинки умной обрезкой, размножаем их аугментацией, пишем свою свёрточную сеть на PyTorch, разбираем цикл обучения по шагам и учим сеть узнавать вашу фотографию.</p>
+      <p class="small muted">Листать: <span class="kbd">←</span> <span class="kbd">→</span> или <span class="kbd">пробел</span></p>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="pair" style="--n:4">
+        <figure><canvas class="cv" width="220" height="220" data-aug='{"bg":0}'></canvas><figcaption>оригинал</figcaption></figure>
+        <figure><canvas class="cv" width="220" height="220" data-aug='{"bg":0,"flipH":true}'></canvas><figcaption>синтетика 1</figcaption></figure>
+        <figure><canvas class="cv" width="220" height="220" data-aug='{"bg":0,"angle":12}'></canvas><figcaption>синтетика 2</figcaption></figure>
+        <figure><canvas class="cv" width="220" height="220" data-aug='{"bg":0,"bright":1.35}'></canvas><figcaption>синтетика 3</figcaption></figure>
+      </div>
+      <div class="loopflow" style="justify-content:center">
+        <span class="tag syn">DataLoader</span><span class="a">→</span><span class="tag">model(x)</span><span class="a">→</span><span class="tag">loss</span><span class="a">→</span><span class="tag">backward</span><span class="a">→</span><span class="tag ok">step</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 PLAN -->
+<section class="slide" data-name="План">
+  <div>
+    <p class="eyebrow">План пары</p>
+    <h2>Путь от папки с фото до обученной сети</h2>
+  </div>
+  <div class="content stack" style="gap:16px">
+    <p class="muted" style="font-size:16.5px">Немного теории в каждом разделе, затем практика: заготовки с пропусками <code>___</code>, подсказки и проверки. Код со слайдов не копируется.</p>
+    <ol class="road">
+      <li><button data-go="sec-colab"><span><span class="t">Colab и PyTorch</span><span class="d">GPU, импорты, device</span></span><span class="tag">старт</span></button></li>
+      <li><button data-go="sec-loader"><span><span class="t">Dataset и DataLoader</span><span class="d">как данные попадают в сеть</span></span><span class="tag">данные</span></button></li>
+      <li><button data-go="sec-data"><span><span class="t">Свой датасет</span><span class="d">зачем и как собрать</span></span><span class="tag">данные</span></button></li>
+      <li><button data-go="sec-arch"><span><span class="t">Архитектура</span><span class="d">схема, код, 6 вариантов</span></span><span class="tag">модель</span></button></li>
+      <li><button data-go="sec-resize"><span><span class="t">Умная обрезка</span><span class="d">smart_resize по центру</span></span><span class="tag">данные</span></button></li>
+      <li><button data-go="sec-loop"><span><span class="t">Цикл обучения</span><span class="d">8 шагов с разбором</span></span><span class="tag">обучение</span></button></li>
+      <li><button data-go="sec-aug"><span><span class="t">Аугментация</span><span class="d">Albumentations, 1 → 4</span></span><span class="tag">данные</span></button></li>
+      <li><button data-go="sec-graphs"><span><span class="t">Графики</span><span class="d">как построить и прочитать</span></span><span class="tag">обучение</span></button></li>
+      <li><button data-go="sec-split"><span><span class="t">Train / val / test</span><span class="d">зачем и в каком порядке</span></span><span class="tag">данные</span></button></li>
+      <li><button data-go="sec-predict"><span><span class="t">Своё фото и ч/б</span><span class="d">predict и 1 канал</span></span><span class="tag syn">задание 2</span></button></li>
+    </ol>
+  </div>
+</section>
+
+<!-- 3 COLAB -->
+<section class="slide" id="sec-colab" data-name="Colab и PyTorch">
+  <div>
+    <p class="eyebrow">Раздел 1 · старт</p>
+    <h2>Google Colab и PyTorch</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <ol class="order">
+        <li>«Среда выполнения» → «Сменить среду выполнения» → <b>T4 GPU</b>. Без видеокарты обучение будет идти в десятки раз дольше.</li>
+        <li>PyTorch в Colab уже установлен. Albumentations обновляем командой <code>!pip</code>.</li>
+        <li>Проверяем, что GPU подключён: должно напечататься <code>cuda</code>.</li>
+      </ol>
+      <div class="note"><span class="label">Запомните</span><p><code>device</code> — это «где считаем». Модель и данные должны быть на одном устройстве.</p></div>
+    </div>
+<pre><code class="language-python">!pip install -q -U albumentations
+
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+
+import torch
+from torch import nn
+from torch.utils.data import Dataset, DataLoader
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Считаем на:", device)
+
+torch.manual_seed(42)        # одинаковый результат при перезапуске
+np.random.seed(42)</code></pre>
+  </div>
+</section>
+
+<!-- 4 WHY OWN DATASET -->
+<section class="slide" id="sec-data" data-name="Зачем свой датасет">
+  <div>
+    <p class="eyebrow syn">Раздел 2 · свой датасет</p>
+    <h2>Зачем собирать свой датасет</h2>
+  </div>
+  <div class="content stack" style="gap:20px">
+    <div class="g3">
+      <div class="card stack" style="gap:6px"><h3>Нет готового</h3><p class="small">Под вашу задачу часто нет датасета: сорта местных яблок, детали вашего завода, ваши комнатные растения.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Реальные условия</h3><p class="small">Готовые фото сняты «идеально». Сеть должна работать на вашей камере, при вашем свете и фоне.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Свои классы</h3><p class="small">Вы сами решаете, какие классы нужны и где граница между ними.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Контроль качества</h3><p class="small">Вы знаете, откуда каждая картинка и правильна ли метка. В чужих датасетах бывают ошибки разметки.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Весь цикл руками</h3><p class="small">Сбор, чистка, разметка, обучение, проверка — ровно то, что делают в реальных проектах.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Портфолио</h3><p class="small">Проект на собственных данных выглядит сильнее, чем очередной MNIST.</p></div>
+    </div>
+    <div class="note syn" style="max-width:820px"><span class="label">Главное</span><p>Качество модели ограничено качеством данных. Хорошая архитектура не спасёт плохой датасет.</p></div>
+  </div>
+</section>
+
+<!-- 5 HOW TO CREATE -->
+<section class="slide" data-name="Как собрать датасет">
+  <div>
+    <p class="eyebrow syn">Раздел 2 · свой датасет</p>
+    <h2>Шесть способов собрать датасет</h2>
+  </div>
+  <div class="content g3">
+    <div class="card stack" style="gap:6px"><h3>Снять самому</h3><p class="small">Телефон, разные ракурсы, фоны и освещение. Самый честный способ, данные ровно под задачу.</p><p class="small muted">+ точно под задачу · − долго</p></div>
+    <div class="card stack" style="gap:6px"><h3>Открытые датасеты</h3><p class="small">Kaggle, Hugging Face Datasets, Roboflow Universe. Берём подходящие классы, дополняем своими фото.</p><p class="small muted">+ быстро · − может не совпасть с задачей</p></div>
+    <div class="card stack" style="gap:6px"><h3>Скачать из поиска</h3><p class="small">Библиотеки <code>icrawler</code>, <code>bing-image-downloader</code> качают картинки по запросу. Обязательно ручная чистка.</p><p class="small muted">+ много · − мусор и дубли</p></div>
+    <div class="card stack" style="gap:6px"><h3>Кадры из видео</h3><p class="small">Снимаем видео и сохраняем каждый N-й кадр через OpenCV. Из минуты видео — сотни фото.</p><p class="small muted">+ очень быстро · − кадры похожи</p></div>
+    <div class="card stack" style="gap:6px"><h3>Синтетика</h3><p class="small">Вклеиваем вырезанные объекты на разные фоны (как на прошлом занятии), 3D-рендер, генеративные модели.</p><p class="small muted">+ разметка бесплатно · − не совсем реально</p></div>
+    <div class="card stack" style="gap:6px"><h3>Разметка сервисом</h3><p class="small">Label Studio, CVAT, Roboflow — если нужны рамки или маски, а не только классы.</p><p class="small muted">+ удобно · − ручная работа</p></div>
+  </div>
+</section>
+
+<!-- 6 ORGANIZE + LOAD -->
+<section class="slide" data-name="Датасет в Colab">
+  <div>
+    <p class="eyebrow syn">Раздел 2 · практика</p>
+    <h2>Структура датасета и загрузка в Colab</h2>
+  </div>
+  <div class="content step">
+    <div class="stack" style="gap:12px">
+<pre class="sm"><code class="language-plaintext">dataset/
+├── apple/    ← класс 0 (порядок по алфавиту)
+├── banana/   ← класс 1
+└── orange/   ← класс 2</code></pre>
+      <ul class="dots small">
+        <li>минимум 50–100 фото на класс, лучше поровну;</li>
+        <li>разные фоны, ракурсы, свет;</li>
+        <li>без дублей и чужих объектов;</li>
+        <li>архив <code>dataset.zip</code> кладём на Google Диск.</li>
+      </ul>
+      <div class="note syn"><span class="label">Получилось, если</span><p>Видите список классов с количеством фото и ряд примеров, по одному на класс.</p></div>
+    </div>
+<pre><code class="language-python">from google.colab import drive
+drive.mount("/content/drive")
+
+# распаковываем архив с Диска в Colab (так читается быстрее)
+!unzip -q "/content/drive/MyDrive/dataset.zip" -d /content/
+
+DATA = "/content/dataset"
+class_names = sorted(___)            # имена папок = классы
+NUM_CLASSES = len(class_names)
+
+for i, cls in enumerate(class_names):
+    n = len(os.listdir(os.path.join(DATA, cls)))
+    print(i, cls, n)
+
+# Сами: покажите по одной картинке каждого класса.
+# fig, axes = plt.subplots(1, NUM_CLASSES, figsize=(12, 3))
+# Классы сбалансированы? Если нет — что можно сделать?</code></pre>
+  </div>
+</section>
+
+<!-- 7 RESIZE THEORY -->
+<section class="slide" id="sec-resize" data-name="Умная обрезка">
+  <div>
+    <p class="eyebrow">Раздел 3 · resize</p>
+    <h2>Почему обычного resize мало</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:36px">
+    <div class="stack" style="gap:14px">
+      <p>Сеть принимает картинки одного размера, например 128 × 128. Если вертикальное фото сразу сжать в квадрат, объекты расплющатся.</p>
+      <p><b>Умная обрезка</b> (smart_resize) работает в два шага:</p>
+      <ol style="margin:0;padding-left:1.2em;display:grid;gap:6px">
+        <li>обрезать до нужных пропорций;</li>
+        <li>уменьшить до нужного размера.</li>
+      </ol>
+      <p>Если обрезать сверху, объект в центре кадра теряет низ. Поэтому режем <b>посередине</b>.</p>
+      <div class="note"><span class="label">Задание 1, пункт 1</span><p>В ноутбуке обрезка идёт сверху. Нужно сделать посередине.</p></div>
+    </div>
+    <div class="tall">
+      <figure><canvas class="cv clear" width="360" height="480" data-tall="full" style="aspect-ratio:3/4"></canvas><figcaption>фото 360 × 480</figcaption></figure>
+      <div class="pair">
+        <figure><canvas class="cv" width="240" height="240" data-tall="top"></canvas><figcaption style="color:var(--bad)">обрезка сверху</figcaption></figure>
+        <figure><canvas class="cv" width="240" height="240" data-tall="center"></canvas><figcaption style="color:var(--ok)">обрезка по центру</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 RESIZE PRACTICE -->
+<section class="slide" data-name="smart_resize: практика">
+  <div>
+    <p class="eyebrow">Раздел 3 · практика</p>
+    <h2>smart_resize по центру</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Найдите в ноутбуке строку, где начало обрезки равно <b>0</b>, и сдвиньте его так, чтобы лишнее срезалось поровну с двух сторон.</p>
+      <div class="note"><span class="label">Подумайте</span>
+        <ul class="dots small">
+          <li>Ширина <code>w</code>, нужно оставить <code>new_w</code>. Сколько лишних пикселей?</li>
+          <li>Как поделить их поровну между левым и правым краем?</li>
+        </ul>
+      </div>
+      <div class="note syn"><span class="label">Получилось, если</span><p>На вертикальном и горизонтальном фото объект по центру цел, размер ровно (SIZE, SIZE).</p></div>
+    </div>
+<pre><code class="language-python">SIZE = 128
+
+def smart_resize(img, size):
+    """Обрезаем до нужных пропорций ПО ЦЕНТРУ, затем resize."""
+    w, h = img.size
+    tw, th = size
+    target = tw / th
+    if w / h &gt; target:                # шире, чем нужно
+        new_w = int(h * target)
+        left = ___                    # было: left = 0
+        box = (left, 0, left + new_w, h)
+    else:                             # выше, чем нужно
+        new_h = int(w / target)
+        top = ___                     # было: top = 0
+        box = (0, top, w, top + new_h)
+    return img.crop(box).resize(size)
+
+# Сверка: Albumentations умеет то же самое «из коробки»
+check = A.Compose([A.SmallestMaxSize(max_size=SIZE),
+                   A.CenterCrop(SIZE, SIZE)])
+# Сравните оба результата. Почему разница не ровно 0?</code></pre>
+  </div>
+</section>
+
+<!-- 9 ALBUMENTATIONS REMINDER -->
+<section class="slide" id="sec-aug" data-name="Albumentations">
+  <div>
+    <p class="eyebrow syn">Раздел 4 · аугментация</p>
+    <h2>Напоминание: основные блоки Albumentations</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:30px">
+    <table class="alb">
+      <tr><td>геометрия</td><td><code>HorizontalFlip</code>, <code>VerticalFlip</code>, <code>Rotate(limit=15)</code>, <code>Affine(scale, translate_percent, rotate)</code>, <code>RandomResizedCrop(size=(h, w))</code></td></tr>
+      <tr><td>цвет</td><td><code>RandomBrightnessContrast</code>, <code>HueSaturationValue</code>, <code>ColorJitter</code>, <code>ToGray</code></td></tr>
+      <tr><td>шум</td><td><code>GaussianBlur</code>, <code>MotionBlur</code>, <code>GaussNoise</code></td></tr>
+      <tr><td>вырезание</td><td><code>CoarseDropout</code> — закрашивает случайные прямоугольники</td></tr>
+      <tr><td>размер</td><td><code>Resize</code>, <code>SmallestMaxSize</code>, <code>CenterCrop</code></td></tr>
+      <tr><td>для PyTorch</td><td><code>Normalize()</code> — нормализация, <code>ToTensorV2()</code> — массив (H, W, C) → тензор (C, H, W). <b>Всегда последними.</b></td></tr>
+    </table>
+    <div class="stack" style="gap:14px">
+      <div class="pair" style="max-width:340px">
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":1}'></canvas><figcaption>оригинал</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":1,"flipH":true}'></canvas><figcaption>HorizontalFlip</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":1,"angle":-14,"scale":1.15}'></canvas><figcaption>Affine</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":1,"bright":0.7}'></canvas><figcaption>BrightnessContrast</figcaption></figure>
+      </div>
+      <div class="note syn"><span class="label">Напомним</span><p><code>p</code> — вероятность срабатывания. <code>p=1</code> — всегда, <code>p=0.5</code> — в половине случаев.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 AUG PRACTICE -->
+<section class="slide" data-name="Аугментация: практика">
+  <div>
+    <p class="eyebrow syn">Раздел 4 · практика</p>
+    <h2>Два набора преобразований и «1 → 4»</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p><b>train_tf</b> — со случайной аугментацией. <b>val_tf</b> — без неё: проверяем на честных картинках.</p>
+      <p><b>SYNTH</b> — три фиксированных синтетических варианта для задания «из одной картинки минимум 4».</p>
+      <div class="note"><span class="label">Подумайте</span>
+        <ul class="dots small">
+          <li>Почему в val_tf нет флипов и поворотов?</li>
+          <li>Какие преобразования не меняют класс именно в вашем датасете?</li>
+        </ul>
+      </div>
+    </div>
+<pre><code class="language-python">train_tf = A.Compose([
+    A.HorizontalFlip(p=___),
+    A.Affine(rotate=(___, ___), scale=(0.9, 1.1), p=0.7),
+    ___,                           # добавьте один цветовой блок
+    A.Normalize(),                 # (x − mean) / std
+    ToTensorV2(),                  # (H, W, C) → тензор (C, H, W)
+])
+
+val_tf = A.Compose([
+    ___,                           # только то, что НЕ случайно
+    ToTensorV2(),
+])
+
+# 1 оригинал → 4 картинки: оригинал + 3 синтетики
+SYNTH = [
+    A.HorizontalFlip(p=1),
+    ___,                           # синтетика 2 (p=1!)
+    ___,                           # синтетика 3
+]</code></pre>
+  </div>
+</section>
+
+<!-- 11 SPLIT WHY -->
+<section class="slide" id="sec-split" data-name="Train / val / test">
+  <div>
+    <p class="eyebrow">Раздел 5 · разбиение</p>
+    <h2>Зачем делить на train, val и test</h2>
+  </div>
+  <div class="content stack" style="gap:22px">
+    <div class="splitbar"><div class="tr">train · 70 %<br>учим</div><div class="va">val · 15 %<br>выбираем</div><div class="te">test · 15 %<br>экзамен</div></div>
+    <div class="g3">
+      <div class="card stack" style="gap:6px"><h3>train</h3><p class="small">На нём сеть учится: по этим картинкам считается loss и меняются веса. Только здесь аугментация.</p></div>
+      <div class="card stack" style="gap:6px"><h3>val</h3><p class="small">Проверка после каждой эпохи. По нему выбираем архитектуру, число эпох, learning rate.</p></div>
+      <div class="card stack" style="gap:6px"><h3>test</h3><p class="small">Честный экзамен <b>один раз в конце</b>. Если подбирать параметры по тесту, он перестаёт быть честным.</p></div>
+    </div>
+    <div class="note" style="max-width:860px"><span class="label">Зачем это всё</span><p>Сеть может запомнить обучающие картинки наизусть. Узнать, умеет ли она работать с новыми, можно только на данных, которые она не видела.</p></div>
+  </div>
+</section>
+
+<!-- 12 SPLIT ORDER -->
+<section class="slide" data-name="Правильный порядок">
+  <div>
+    <p class="eyebrow">Раздел 5 · разбиение</p>
+    <h2>Правильный порядок подготовки данных</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:30px">
+    <ol class="order">
+      <li>Собираем список путей к файлам и номера классов.</li>
+      <li>Делим <b>пути</b> на train / val / test с <code>stratify</code>, чтобы доля классов везде была одинаковой.</li>
+      <li>Создаём три Dataset: train с <code>train_tf</code> и синтетикой, val и test с <code>val_tf</code>.</li>
+      <li>Оборачиваем в DataLoader: train с <code>shuffle=True</code>, остальные без перемешивания.</li>
+      <li>Учим на train, после каждой эпохи смотрим val. Test — один раз в самом конце.</li>
+    </ol>
+    <div class="stack" style="gap:10px">
+      <p class="small muted">Так делать нельзя:</p>
+      <ul class="bad-list">
+        <li><b>Сначала аугментация, потом split.</b> Копии одного фото попадут и в train, и в test — утечка, метрика завышена.</li>
+        <li><b><code>ImageFolder</code> + <code>random_split</code> с одним transform.</b> Val тоже получит случайную аугментацию.</li>
+        <li><b>Подбирать эпохи и архитектуру по test.</b> Test превращается во второй val.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 13 SPLIT CODE -->
+<section class="slide" data-name="Разбиение: практика">
+  <div>
+    <p class="eyebrow">Раздел 5 · практика</p>
+    <h2>Делим пути на train, val и test</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Делим не картинки, а <b>пути к файлам</b>. Картинки будет открывать Dataset.</p>
+      <p><code>train_test_split</code> делит на две части, поэтому вызываем его дважды.</p>
+      <div class="note"><span class="label">Подумайте</span><p>Во втором вызове делим уже 85 % данных. Какой <code>test_size</code> нужен, чтобы val был ≈ 15 % от <b>всех</b>?</p></div>
+      <div class="note syn"><span class="label">Получилось, если</span><p>Размеры примерно 70 / 15 / 15 %, и в каждой части есть все классы.</p></div>
+    </div>
+<pre><code class="language-python">from sklearn.model_selection import train_test_split
+
+paths, labels = [], []
+for i, cls in enumerate(class_names):
+    for f in os.listdir(os.path.join(DATA, cls)):
+        paths.append(os.path.join(DATA, cls, f))
+        labels.append(___)                 # номер класса
+
+# 1) отделяем test — 15 %
+p_rest, p_test, y_rest, y_test = train_test_split(
+    paths, labels, test_size=0.15,
+    stratify=labels, random_state=42)
+
+# 2) из остатка отделяем val
+p_train, p_val, y_train, y_val = train_test_split(
+    p_rest, y_rest, test_size=___,
+    stratify=___, random_state=42)
+
+print(len(p_train), len(p_val), len(p_test))</code></pre>
+  </div>
+</section>
+
+<!-- 14 DATASET -->
+<section class="slide" id="sec-loader" data-name="Dataset">
+  <div>
+    <p class="eyebrow">Раздел 6 · загрузка данных</p>
+    <h2>Dataset: как отдать одну картинку</h2>
+  </div>
+  <div class="content step wide">
+    <div class="stack">
+      <p>Dataset — это класс с двумя обязательными методами:</p>
+      <ul class="ptr">
+        <li><span class="n">①</span><span><code>__len__</code> — сколько всего примеров.</span></li>
+        <li><span class="n">②</span><span><code>__getitem__(i)</code> — вернуть i-й пример: (картинка, метка).</span></li>
+      </ul>
+      <p class="small">Для «1 → 4» каждая картинка даёт k вариантов. Номер i превращаем в пару: какая картинка и какой вариант. Вариант 0 — оригинал.</p>
+      <div class="note"><span class="label">Подсказка</span><p><code>//</code> и <code>%</code>: при k = 4 номер 9 → картинка 2, вариант 1.</p></div>
+    </div>
+<pre><code class="language-python">class ImageDataset(Dataset):
+    def __init__(self, paths, labels, transform, n_synth=0):
+        self.paths, self.labels = paths, labels
+        self.transform = transform
+        self.k = 1 + n_synth              # вариантов на картинку
+
+    def __len__(self):                    # ①
+        return ___                        # с учётом вариантов!
+
+    def __getitem__(self, i):             # ②
+        idx, variant = ___, ___           # какая картинка, какой вариант
+        img = Image.open(self.paths[idx]).convert("RGB")
+        img = np.array(smart_resize(img, (SIZE, SIZE)))
+        if variant &gt; 0:                   # синтетика № variant
+            img = SYNTH[variant - 1](image=img)["image"]
+        img = self.transform(image=img)["image"]
+        return img, self.labels[idx]</code></pre>
+  </div>
+</section>
+
+<!-- 15 DATALOADER -->
+<section class="slide" data-name="DataLoader">
+  <div>
+    <p class="eyebrow">Раздел 6 · загрузка данных</p>
+    <h2>DataLoader: нарезаем на батчи</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>DataLoader берёт Dataset и:</p>
+      <ul class="dots small">
+        <li>собирает картинки в <b>батчи</b> по <code>batch_size</code>;</li>
+        <li>перемешивает их каждую эпоху, если <code>shuffle=True</code>;</li>
+        <li>грузит параллельно (<code>num_workers</code>).</li>
+      </ul>
+      <div class="note"><span class="label">Подумайте</span><p>Зачем перемешивать train? Нужно ли перемешивать val?</p></div>
+      <div class="note syn"><span class="label">Получилось, если</span><p>Форма батча <code>[32, 3, 128, 128]</code>, меток <code>[32]</code>, а train_ds в 4 раза больше p_train.</p></div>
+    </div>
+<pre><code class="language-python">train_ds = ImageDataset(p_train, y_train, train_tf, n_synth=3)
+val_ds   = ImageDataset(p_val,   y_val,   val_tf)
+test_ds  = ImageDataset(p_test,  y_test,  val_tf)
+
+train_loader = DataLoader(train_ds, batch_size=32,
+                          shuffle=___, num_workers=2)
+val_loader   = DataLoader(val_ds, batch_size=32, shuffle=___)
+test_loader  = DataLoader(test_ds, batch_size=32, shuffle=False)
+
+images, labels = next(iter(train_loader))    # один батч
+print(images.shape)    # torch.Size([32, 3, 128, 128])
+print(labels.shape)    # torch.Size([32])
+
+print(len(p_train), len(train_ds), len(train_loader))
+# картинок → примеров (×4) → батчей</code></pre>
+  </div>
+</section>
+
+<!-- 16 ARCH SCHEME -->
+<section class="slide" id="sec-arch" data-name="Архитектура: схема">
+  <div>
+    <p class="eyebrow">Раздел 7 · архитектура</p>
+    <h2>Свёрточная сеть: что происходит с формой</h2>
+  </div>
+  <div class="content stack" style="gap:24px">
+    <div class="cnn">
+      <div class="blk"><div class="box in" style="width:78px;height:78px">3×128×128</div><span class="lbl">картинка</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:70px;height:70px">Conv 32<br>+ReLU</div><span class="lbl">32×128×128</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:52px;height:52px">Pool</div><span class="lbl">32×64×64</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:52px;height:52px">Conv 64<br>Pool</div><span class="lbl">64×32×32</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:40px;height:40px">Conv 128 Pool</div><span class="lbl">128×16×16</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:30px;height:84px;writing-mode:vertical-rl">Flatten</div><span class="lbl">32 768</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box" style="width:30px;height:64px;writing-mode:vertical-rl">Linear</div><span class="lbl">256</span></div><span class="arr">→</span>
+      <div class="blk"><div class="box out" style="width:64px;height:40px">Linear</div><span class="lbl">NUM_CLASSES логитов</span></div>
+    </div>
+    <div class="g3">
+      <div class="card stack" style="gap:6px"><h3>Conv2d</h3><p class="small">Фильтры 3 × 3 ищут признаки: сначала края и пятна, глубже — формы и части объектов. Число каналов растёт.</p></div>
+      <div class="card stack" style="gap:6px"><h3>MaxPool2d(2)</h3><p class="small">Уменьшает высоту и ширину в 2 раза. Сеть быстрее и меньше зависит от точного положения объекта.</p></div>
+      <div class="card stack" style="gap:6px"><h3>Linear</h3><p class="small">Собирает признаки в ответ. Последний слой выдаёт <b>логиты</b> — по числу на класс, без softmax.</p></div>
+    </div>
+    <p class="small muted">Формы в PyTorch: (каналы, высота, ширина). В батче впереди добавляется размер батча: (32, 3, 128, 128).</p>
+  </div>
+</section>
+
+<!-- 17 ARCH CODE -->
+<section class="slide" data-name="Архитектура: код">
+  <div>
+    <p class="eyebrow">Раздел 7 · архитектура</p>
+    <h2>Та же схема в коде (вариант A)</h2>
+  </div>
+  <div class="content step wide">
+    <div class="stack">
+      <ul class="ptr">
+        <li><span class="n">①</span><span>Сеть — класс-наследник <code>nn.Module</code>. Это аналог функционального API: сами описываем путь данных.</span></li>
+        <li><span class="n">②</span><span><code>features</code> превращает картинку в карту признаков.</span></li>
+        <li><span class="n">③</span><span><code>classifier</code> превращает признаки в ответ.</span></li>
+        <li><span class="n">④</span><span><code>Dropout</code> выключает часть нейронов при обучении.</span></li>
+        <li><span class="n">⑤</span><span>На выходе логиты: softmax уже внутри <code>CrossEntropyLoss</code>.</span></li>
+        <li><span class="n">⑥</span><span><code>forward</code> — как данные идут через слои.</span></li>
+      </ul>
+    </div>
+<pre><code class="language-python">class Net(nn.Module):                               # ①
+    def __init__(self, num_classes, in_ch=3):
+        super().__init__()
+        self.features = nn.Sequential(              # ②
+            nn.Conv2d(in_ch, 32, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),                        # 128 → 64
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),                        # 64 → 32
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),                        # 32 → 16
+        )
+        self.classifier = nn.Sequential(            # ③
+            nn.Flatten(),                           # 128·16·16
+            nn.Linear(128 * 16 * 16, 256), nn.ReLU(),
+            nn.Dropout(0.3),                        # ④
+            nn.Linear(256, num_classes),            # ⑤
+        )
+
+    def forward(self, x):                           # ⑥
+        x = self.features(x)
+        return self.classifier(x)</code></pre>
+  </div>
+</section>
+
+<!-- 18 ARCH VARIANTS -->
+<section class="slide" data-name="Варианты архитектур">
+  <div>
+    <p class="eyebrow">Раздел 7 · задание</p>
+    <h2>Шесть вариантов: у каждого своя сеть</h2>
+  </div>
+  <div class="content stack" style="gap:14px">
+    <p class="muted" style="font-size:16px">Ваш вариант: <b>(номер в журнале − 1) mod 6</b> → 0 = A, 1 = B, … 5 = F. Возьмите вариант за основу и улучшайте до лучшей точности на val.</p>
+    <table class="exp">
+      <tr><th></th><th>Архитектура</th><th>Особенность и подсказка</th></tr>
+      <tr><td class="v">A</td><td>3 × [Conv → ReLU → MaxPool], 32/64/128, Linear 256, Dropout 0.3</td><td>База со слайда. Улучшайте: больше фильтров, другой Dropout.</td></tr>
+      <tr><td class="v">B</td><td>3 × [Conv → <b>BatchNorm2d</b> → ReLU → MaxPool]</td><td>BatchNorm после каждой свёртки. Обучение стабильнее, можно выше lr.</td></tr>
+      <tr><td class="v">C</td><td>3 × [Conv → ReLU → <b>Conv</b> → ReLU → MaxPool]</td><td>Две свёртки подряд, как в VGG. Сеть глубже при том же размере.</td></tr>
+      <tr><td class="v">D</td><td>4 блока 32/64/128/256 + <b>AdaptiveAvgPool2d(1)</b></td><td>Вместо огромного Flatten — среднее по каждому каналу. Параметров в разы меньше.</td></tr>
+      <tr><td class="v">E</td><td>2 блока 64/128, свёртки <b>5 × 5</b>, Dropout 0.5</td><td>Меньше слоёв, крупнее фильтры. Сравните с A по точности и скорости.</td></tr>
+      <tr><td class="v">F</td><td>3 <b>остаточных</b> блока: out = ReLU(x + f(x))</td><td>Как в ResNet. Нужен свой класс блока; если каналы меняются, x пропускаем через Conv 1 × 1.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- 19 MODEL CHECK -->
+<section class="slide" data-name="Проверка модели">
+  <div>
+    <p class="eyebrow">Раздел 7 · практика</p>
+    <h2>Проверяем модель до обучения</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Прогоните через сеть «фальшивый» батч из нулей. Если формы не сходятся, ошибка вылезет сразу, а не через 10 минут обучения.</p>
+      <div class="note"><span class="label">Частый вопрос</span><p>Сколько входов у первого <code>Linear</code>? Не считайте в уме: выведите форму после <code>features</code> и перемножьте C · H · W.</p></div>
+      <div class="note syn"><span class="label">Получилось, если</span><p>Выход имеет форму <code>(2, NUM_CLASSES)</code>, число параметров напечатано.</p></div>
+    </div>
+<pre><code class="language-python">model = Net(NUM_CLASSES).to(device)       # модель на GPU
+
+x = torch.zeros(2, 3, SIZE, SIZE, device=device)   # фальшивый батч
+print(model(x).shape)          # ждём torch.Size([2, NUM_CLASSES])
+
+print(model.features(x).shape) # (2, C, H, W) → Linear ждёт C·H·W
+
+params = sum(p.numel() for p in model.parameters())
+print(f"Параметров: {params:,}")
+
+# Сравните число параметров у своего варианта и у варианта A.
+# У какого меньше? Почему?</code></pre>
+  </div>
+</section>
+
+<!-- 20 LOOP OVERVIEW -->
+<section class="slide" id="sec-loop" data-name="Цикл обучения">
+  <div>
+    <p class="eyebrow">Раздел 8 · цикл обучения</p>
+    <h2>Цикл обучения: 8 шагов на каждый батч</h2>
+  </div>
+  <div class="content stack" style="gap:22px">
+    <div class="loopflow">
+      <div class="s g"><b>①</b><code>for … in loader</code><span>берём батч</span></div><span class="a">→</span>
+      <div class="s g"><b>②</b><code>.to(device)</code><span>на GPU</span></div><span class="a">→</span>
+      <div class="s"><b>③</b><code>model(images)</code><span>предсказание</span></div><span class="a">→</span>
+      <div class="s"><b>④</b><code>criterion(…)</code><span>ошибка loss</span></div><span class="a">→</span>
+      <div class="s"><b>⑤</b><code>zero_grad()</code><span>сброс градиентов</span></div><span class="a">→</span>
+      <div class="s"><b>⑥</b><code>backward()</code><span>новые градиенты</span></div><span class="a">→</span>
+      <div class="s"><b>⑦</b><code>step()</code><span>меняем веса</span></div><span class="a">→</span>
+      <div class="s"><b>⑧</b><code>loss.item()</code><span>метрики</span></div>
+    </div>
+    <div class="g2" style="gap:24px">
+      <div class="stack" style="gap:10px">
+        <p>Один проход по всем батчам — <b>эпоха</b>. Обучение — это несколько эпох подряд, после каждой проверяем val.</p>
+        <p class="small muted">Перед циклом создаём функцию ошибки и оптимизатор — один раз.</p>
+      </div>
+<pre><code class="language-python">criterion = nn.CrossEntropyLoss()   # внутри уже есть softmax
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+EPOCHS = 15</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- 21 LOOP 1-2 -->
+<section class="slide" data-name="Шаги ①–②">
+  <div>
+    <p class="eyebrow">Раздел 8 · шаги ① и ②</p>
+    <h2>Берём батч и переносим на GPU</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <ul class="ptr">
+        <li><span class="n">①</span><span>Цикл <code>for</code> по DataLoader на каждой итерации отдаёт пару: <b>картинки и метки</b> одного батча. За эпоху итераций будет <code>len(train_loader)</code>. Последний батч может быть меньше 32.</span></li>
+        <li><span class="n">②</span><span><code>.to(device)</code> копирует тензоры на видеокарту. Модель перенесли туда раньше, один раз. Если забыть — ошибка <i>Expected all tensors to be on the same device</i>.</span></li>
+      </ul>
+      <div class="note"><span class="label">model.train()</span><p>Включает режим обучения: Dropout работает, BatchNorm обновляет статистики.</p></div>
+    </div>
+<pre><code class="language-python">model.train()                           # режим обучения
+
+for images, labels in train_loader:     # ① берём очередной батч
+    # images: [32, 3, 128, 128]  — 32 картинки
+    # labels: [32]               — 32 номера классов
+
+    images = images.to(device)          # ② переносим на GPU
+    labels = labels.to(device)
+
+    # проверить можно так:
+    # print(images.device, next(model.parameters()).device)
+    # оба должны быть cuda:0
+    ...</code></pre>
+  </div>
+</section>
+
+<!-- 22 LOOP 3-4 -->
+<section class="slide" data-name="Шаги ③–④">
+  <div>
+    <p class="eyebrow">Раздел 8 · шаги ③ и ④</p>
+    <h2>Прогоняем через сеть и считаем ошибку</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <ul class="ptr">
+        <li><span class="n">③</span><span><code>model(images)</code> вызывает <code>forward</code>. На выходе <b>логиты</b>: для каждой картинки по числу на класс. Чем больше число, тем сильнее сеть «за» этот класс.</span></li>
+        <li><span class="n">④</span><span><code>CrossEntropyLoss</code> сравнивает логиты с правильными метками и выдаёт <b>одно число</b> — среднюю ошибку на батче. Внутри он сам делает softmax.</span></li>
+      </ul>
+      <div class="note"><span class="label">Метки</span><p>Метки — номера классов (тип <code>long</code>), а не one-hot.</p></div>
+    </div>
+<pre><code class="language-python">    outputs = model(images)             # ③ прямой проход
+    # outputs: [32, NUM_CLASSES] — логиты
+    # outputs[0] = tensor([ 2.1, -0.4,  0.3])
+    #                        ↑ сеть «за» класс 0
+
+    loss = criterion(outputs, labels)   # ④ ошибка
+    # loss: tensor(0.8731) — одно число на весь батч
+    # правильные ответы уверенно → loss маленький
+    # ошибки уверенно → loss большой</code></pre>
+  </div>
+</section>
+
+<!-- 23 LOOP 5-7 -->
+<section class="slide" data-name="Шаги ⑤–⑦">
+  <div>
+    <p class="eyebrow">Раздел 8 · шаги ⑤, ⑥ и ⑦</p>
+    <h2>Три строки, которые учат сеть</h2>
+  </div>
+  <div class="content stack" style="gap:20px">
+    <div class="g3">
+      <div class="card stack" style="gap:6px"><h3>⑤ zero_grad()</h3><p class="small">PyTorch <b>складывает</b> градиенты от вызова к вызову. Если не обнулить, к новым добавятся старые от прошлого батча, и сеть будет шагать не туда.</p></div>
+      <div class="card stack" style="gap:6px"><h3>⑥ backward()</h3><p class="small">Обратное распространение ошибки. Для каждого веса считается градиент: в какую сторону его менять, чтобы loss уменьшился. Лежит в <code>w.grad</code>.</p></div>
+      <div class="card stack" style="gap:6px"><h3>⑦ step()</h3><p class="small">Оптимизатор (Adam) сдвигает каждый вес на небольшой шаг против градиента. Размер шага задаёт <code>lr</code>.</p></div>
+    </div>
+    <div class="g2" style="gap:24px;align-items:center">
+<pre><code class="language-python">optimizer.zero_grad()   # ⑤ стираем старые
+loss.backward()         # ⑥ считаем новые
+optimizer.step()        # ⑦ обновляем веса</code></pre>
+      <div class="note"><span class="label">Как запомнить</span><p>Спуск с горы в тумане: ⑤ забыть прошлый шаг, ⑥ нащупать, куда склон идёт вниз, ⑦ шагнуть туда. Порядок именно такой.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 LOOP 8 + VAL -->
+<section class="slide" data-name="Шаг ⑧ и валидация">
+  <div>
+    <p class="eyebrow">Раздел 8 · шаг ⑧</p>
+    <h2>Метрики по loss и валидация</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <ul class="ptr">
+        <li><span class="n">⑧</span><span><code>loss.item()</code> — обычное число Python. Умножаем на размер батча: последний батч меньше, и так среднее будет честным.</span></li>
+        <li><span class="n">⑧</span><span><code>outputs.argmax(1)</code> — номер класса с наибольшим логитом. Сравниваем с метками и считаем верные.</span></li>
+      </ul>
+      <div class="note"><span class="label">Валидация</span><p><code>model.eval()</code> выключает Dropout, <code>torch.no_grad()</code> не считает градиенты. Шаги ⑤–⑦ на val не делаем никогда.</p></div>
+    </div>
+<pre><code class="language-python">    # ⑧ копим метрики за эпоху (внутри цикла по батчам)
+    run_loss += loss.item() * labels.size(0)
+    correct += (outputs.argmax(1) == labels).sum().item()
+    total += labels.size(0)
+
+# после цикла по батчам:
+train_loss = run_loss / total          # средний loss за эпоху
+train_acc = correct / total            # доля верных ответов
+
+# Валидация: те же ①–④ и ⑧, но без обучения
+model.eval()
+with torch.no_grad():
+    for images, labels in val_loader:
+        ...                            # ① ② ③ ④ ⑧</code></pre>
+  </div>
+</section>
+
+<!-- 25 FULL LOOP -->
+<section class="slide" data-name="Полный цикл">
+  <div>
+    <p class="eyebrow">Раздел 8 · собираем вместе</p>
+    <h2>Полный цикл обучения</h2>
+  </div>
+  <div class="content step wide" style="grid-template-columns:minmax(0,.62fr) minmax(0,1.9fr)">
+    <div class="stack">
+      <p class="small">Одна функция на train и на val: флаг <code>train</code> включает шаги ⑤–⑦ и градиенты.</p>
+      <p class="small"><code>history</code> копит метрики по эпохам — из неё построим графики.</p>
+      <div class="note syn"><span class="label">Получилось, если</span><p class="small">loss train падает, а в каждой строке видны loss и accuracy для train и val.</p></div>
+    </div>
+<pre class="sm"><code class="language-python">def run_epoch(loader, train):
+    model.train() if train else model.eval()
+    total_loss, correct, total = 0.0, 0, 0
+    with torch.set_grad_enabled(train):
+        for images, labels in loader:                          # ①
+            images, labels = images.to(device), labels.to(device)  # ②
+            outputs = model(images)                            # ③
+            loss = criterion(outputs, labels)                  # ④
+            if train:
+                optimizer.zero_grad()                          # ⑤
+                loss.backward()                                # ⑥
+                optimizer.step()                               # ⑦
+            total_loss += loss.item() * labels.size(0)         # ⑧
+            correct += (outputs.argmax(1) == labels).sum().item()
+            total += labels.size(0)
+    return total_loss / total, correct / total
+
+history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
+for epoch in range(1, EPOCHS + 1):
+    tl, ta = run_epoch(train_loader, train=True)
+    vl, va = run_epoch(val_loader, train=False)
+    for key, v in zip(history, (tl, vl, ta, va)):
+        history[key].append(v)
+    print(f"{epoch:2d} | loss {tl:.3f} / {vl:.3f} | acc {ta:.2f} / {va:.2f}")</code></pre>
+  </div>
+</section>
+
+<!-- 26 GRAPHS READ -->
+<section class="slide" id="sec-graphs" data-name="Как читать графики">
+  <div>
+    <p class="eyebrow">Раздел 9 · графики</p>
+    <h2>Как читать графики обучения</h2>
+  </div>
+  <div class="content g2" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:30px;align-items:center">
+    <figure>
+      <svg class="chart" id="lossChart" viewBox="0 0 520 280" role="img" aria-label="Пример графика loss: train падает, val падает до 9-й эпохи, потом растёт"></svg>
+      <figcaption>пример: loss по эпохам (условные данные)</figcaption>
+    </figure>
+    <div class="stack" style="gap:14px">
+      <div class="cases">
+        <div class="case"><span class="tag ok">учится</span><span>train и val падают вместе, разрыв небольшой.</span></div>
+        <div class="case"><span class="tag bad">переобучение</span><span>train падает дальше, а val начинает расти. Лучшая эпоха — минимум val.</span></div>
+        <div class="case"><span class="tag syn">недообучение</span><span>оба loss высокие и почти не падают. Нужна сеть мощнее или больше эпох.</span></div>
+      </div>
+      <div class="note"><span class="label">Что делать при переобучении</span><p class="small">Больше аугментации, Dropout, меньше эпох (остановиться на лучшей), сеть попроще.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 27 GRAPHS CODE -->
+<section class="slide" data-name="Как построить графики">
+  <div>
+    <p class="eyebrow">Раздел 9 · практика</p>
+    <h2>Как правильно построить графики</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Правила хорошего графика обучения:</p>
+      <ul class="dots small">
+        <li>два графика рядом: <b>loss</b> и <b>accuracy</b> (у них разный масштаб);</li>
+        <li>на каждом — train и val, у каждой линии подпись в легенде;</li>
+        <li>по X эпохи с 1, а не с 0;</li>
+        <li>подписи осей и заголовок;</li>
+        <li>отметьте лучшую эпоху по val.</li>
+      </ul>
+      <div class="note syn"><span class="label">Получилось, если</span><p>По графику без пояснений понятно, есть ли переобучение и на какой эпохе лучше остановиться.</p></div>
+    </div>
+<pre><code class="language-python">epochs = range(1, len(history["train_loss"]) + 1)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.plot(epochs, history["train_loss"], label="train")
+ax1.plot(epochs, history[___], label="val")
+ax1.set_title("Loss")
+ax1.set_xlabel("эпоха"); ax1.set_ylabel(___)
+ax1.legend(); ax1.grid(alpha=0.3)
+
+# ax2 — accuracy: постройте сами по образцу ax1
+___
+
+best = int(np.argmax(history["val_acc"])) + 1   # лучшая эпоха
+for ax in (ax1, ax2):
+    ax.axvline(best, ls="--", color="gray")
+plt.tight_layout(); plt.show()</code></pre>
+  </div>
+</section>
+
+<!-- 28 QUIZ -->
+<section class="slide" data-name="Проверь себя">
+  <div class="qhead">
+    <div>
+      <p class="eyebrow">Перед заданием 2</p>
+      <h2>Проверь себя: цикл обучения</h2>
+    </div>
+    <div class="row"><span class="score" data-score></span><button class="btn" data-reset>Заново</button></div>
+  </div>
+  <div class="content quiz" data-quiz="torch"></div>
+</section>
+
+<!-- 29 PREDICT -->
+<section class="slide" id="sec-predict" data-name="Своё фото">
+  <div>
+    <p class="eyebrow syn">Раздел 10 · задание 2, №1</p>
+    <h2>Распознаём своё фото</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Своё фото готовим <b>точно так же</b>, как val: smart_resize и <code>val_tf</code>.</p>
+      <div class="note"><span class="label">Подсказки</span>
+        <ul class="dots small">
+          <li><code>files.upload()</code> возвращает словарь. Где имя файла?</li>
+          <li>Сеть ждёт батч: из (3, H, W) нужно сделать (1, 3, H, W).</li>
+          <li>Логиты в вероятности превращает <code>torch.softmax</code>.</li>
+        </ul>
+      </div>
+      <div class="note syn"><span class="label">Получилось, если</span><p>Вероятности в сумме ≈ 1, ответ сети сравнен с правильным. Проверьте на 3 своих фото.</p></div>
+    </div>
+<pre><code class="language-python">from google.colab import files
+
+uploaded = files.upload()
+name = ___                                 # имя загруженного файла
+
+img = Image.open(name).convert("RGB")
+img = np.array(smart_resize(img, (SIZE, SIZE)))
+x = val_tf(image=img)["image"]             # как у val
+x = x.___(0).to(device)                    # (3,H,W) → (1,3,H,W)
+
+model.eval()
+with torch.no_grad():
+    logits = model(x)
+    probs = torch.___(logits, dim=1)[0].cpu()
+
+for cls, p in zip(class_names, probs):
+    print(f"{cls:&gt;12}: {p:.3f}")
+print("Ответ сети:      ", class_names[___])
+print("Правильный ответ:", ___)</code></pre>
+  </div>
+</section>
+
+<!-- 30 GRAY -->
+<section class="slide" data-name="Ч/б режим">
+  <div>
+    <p class="eyebrow syn">Раздел 10 · задание 2, №2</p>
+    <h2>Чёрно-белый режим и сравнение</h2>
+  </div>
+  <div class="content step">
+    <div class="stack">
+      <p>Скопируйте ноутбук и переведите в ч/б весь путь данных: Dataset, нормализацию, модель и своё фото.</p>
+      <div class="pair" style="max-width:300px">
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":0}'></canvas><figcaption>RGB · 3 канала</figcaption></figure>
+        <figure><canvas class="cv" width="200" height="200" data-aug='{"bg":0,"gray":true}'></canvas><figcaption>L · 1 канал</figcaption></figure>
+      </div>
+      <table class="exp blank">
+        <tr><th>Режим</th><th>val acc</th><th>test acc</th></tr>
+        <tr><td>цвет</td><td></td><td></td></tr>
+        <tr><td>ч/б</td><td></td><td></td></tr>
+      </table>
+    </div>
+<pre><code class="language-python"># 1) Dataset.__getitem__: ч/б режим PIL
+img = Image.open(self.paths[idx]).convert(___)
+# np.array(img).shape == (H, W) — канала нет,
+# ToTensorV2 сам сделает из него (1, H, W)
+
+# 2) Normalize по умолчанию ждёт 3 канала
+A.Normalize(mean=(___,), std=(___,))
+
+# 3) модель: сколько каналов у первой свёртки?
+model = Net(NUM_CLASSES, in_ch=___).to(device)
+
+# 4) фальшивый батч и своё фото — тоже 1 канал:
+#    (1, 1, SIZE, SIZE)
+
+# Вывод в ноутбуке: стала ли точность хуже?
+# Важен ли цвет для ваших классов?</code></pre>
+  </div>
+</section>
+
+<!-- 31 ERRORS -->
+<section class="slide" data-name="Ошибки PyTorch">
+  <div>
+    <p class="eyebrow">Если что-то сломалось</p>
+    <h2>Ошибки PyTorch и что они значат</h2>
+  </div>
+  <div class="content errs">
+    <div class="err"><span class="m">Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!</span><span class="f">Забыли <code>.to(device)</code> у данных или у модели.</span></div>
+    <div class="err"><span class="m">Given groups=1, weight of size [32, 3, 3, 3], expected input[32, 1, 128, 128] to have 3 channels, but got 1</span><span class="f">Картинки ч/б, а первая свёртка ждёт 3 канала. Поменяйте <code>in_ch</code>.</span></div>
+    <div class="err"><span class="m">mat1 and mat2 shapes cannot be multiplied (32x65536 and 32768x256)</span><span class="f">Входы первого <code>Linear</code> не совпадают с выходом <code>features</code>. Выведите <code>model.features(x).shape</code>.</span></div>
+    <div class="err"><span class="m">Target 5 is out of bounds</span><span class="f">В последнем Linear меньше выходов, чем классов. Проверьте <code>NUM_CLASSES</code>.</span></div>
+    <div class="err"><span class="m">CUDA out of memory</span><span class="f">Уменьшите <code>batch_size</code> или <code>SIZE</code>. Перезапустите среду.</span></div>
+    <div class="err"><span class="m">loss не падает, accuracy ≈ 1 / число классов</span><span class="f">Проверьте ⑤–⑦ (zero_grad, backward, step), lr и соответствие меток картинкам.</span></div>
+    <div class="err"><span class="m">val accuracy = 1.00 с первых эпох</span><span class="f">Утечка: синтетика или копии попали в val. Сначала split, потом аугментация.</span></div>
+  </div>
+</section>
+
+<!-- 32 CHEAT -->
+<section class="slide" data-name="Шпаргалка">
+  <div>
+    <p class="eyebrow">Опора</p>
+    <h2>Шпаргалка</h2>
+  </div>
+  <div class="content cheat">
+    <div class="card"><h3>Данные</h3><ul>
+      <li><code>drive.mount(...)</code>, <code>!unzip</code>, <code>files.upload()</code></li>
+      <li><code>Image.open(p).convert("RGB" / "L")</code></li>
+      <li><code>img.crop((l, t, r, b))</code>, <code>img.resize((w, h))</code></li>
+      <li><code>train_test_split(..., stratify=...)</code></li>
+      <li><code>Dataset</code>: <code>__len__</code>, <code>__getitem__</code></li>
+      <li><code>DataLoader(ds, batch_size, shuffle)</code></li>
+      <li><code>next(iter(loader))</code> — один батч</li>
+    </ul></div>
+    <div class="card"><h3>Albumentations</h3><ul>
+      <li><code>A.Compose([...])</code>, <code>tf(image=img)["image"]</code></li>
+      <li><code>HorizontalFlip</code>, <code>Affine</code>, <code>Rotate</code></li>
+      <li><code>RandomBrightnessContrast</code>, <code>HueSaturationValue</code></li>
+      <li><code>GaussianBlur</code>, <code>CoarseDropout</code></li>
+      <li><code>SmallestMaxSize</code>, <code>CenterCrop</code></li>
+      <li><code>Normalize()</code>, <code>ToTensorV2()</code> — в конце</li>
+    </ul></div>
+    <div class="card"><h3>PyTorch</h3><ul>
+      <li><code>nn.Conv2d</code>, <code>nn.MaxPool2d</code>, <code>nn.BatchNorm2d</code></li>
+      <li><code>nn.Flatten</code>, <code>nn.Linear</code>, <code>nn.Dropout</code></li>
+      <li><code>nn.CrossEntropyLoss()</code>, <code>torch.optim.Adam</code></li>
+      <li><code>model.train()</code> / <code>model.eval()</code>, <code>torch.no_grad()</code></li>
+      <li><code>zero_grad()</code> → <code>backward()</code> → <code>step()</code></li>
+      <li><code>.to(device)</code>, <code>.unsqueeze(0)</code>, <code>.argmax(1)</code></li>
+      <li><code>torch.softmax(x, dim=1)</code>, <code>torch.save(model.state_dict(), path)</code></li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 33 KT -->
+<section class="slide" data-name="КТ целиком">
+  <div>
+    <p class="eyebrow">Контрольная точка</p>
+    <h2>Задания целиком</h2>
+  </div>
+  <div class="content stack" style="gap:16px">
+    <div class="g2" style="gap:22px">
+      <div class="card task">
+        <span class="pts">Задание 1 · 1 балл</span>
+        <h3>Обучить нейросеть на собственном датасете</h3>
+        <ul class="dots">
+          <li>smart_resize режет посередине. <button class="link" data-go="sec-resize">раздел 3</button></li>
+          <li>Из одной картинки минимум 4: оригинал + 3 синтетики, только для train. <button class="link" data-go="sec-aug">раздел 4</button></li>
+          <li>Правильный порядок: split → Dataset → DataLoader. <button class="link" data-go="sec-split">разделы 5–6</button></li>
+          <li>Своя сеть-класс <code>nn.Module</code> по своему варианту. <button class="link" data-go="sec-arch">раздел 7</button></li>
+          <li>Цикл обучения и графики loss и accuracy. <button class="link" data-go="sec-loop">разделы 8–9</button></li>
+        </ul>
+      </div>
+      <div class="card task">
+        <span class="pts">Задание 2 · 1 балл</span>
+        <h3>Распознавание собственной картинки</h3>
+        <ul class="dots">
+          <li><b>№1.</b> upload → smart_resize → val_tf → model. Вывести вероятности, ответ сети и правильный ответ. <button class="link" data-go="sec-predict">раздел 10</button></li>
+          <li><b>№2.</b> Копия ноутбука в ч/б: 1 канал в Dataset, Normalize, модели и своём фото.</li>
+          <li>Таблица «цвет / ч/б» и вывод.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note"><span class="label">Перед сдачей</span><p>Ноутбук запускается сверху вниз без ошибок, результаты и графики видны, доступ по ссылке открыт. Приложите ссылки на ноутбуки.</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+<nav class="bar" aria-label="Навигация по слайдам">
+  <button id="prev" aria-label="Предыдущий слайд">←</button>
+  <span class="counter" id="counter"></span>
+  <button id="next" aria-label="Следующий слайд">→</button>
+  <div class="progress"><i id="prog"></i></div>
+  <span class="hint" id="slideName"></span>
+  <button id="fs" aria-label="Во весь экран">⛶</button>
+</nav>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function(){
+/* ================= deck ================= */
+const root=document.documentElement, slides=[...document.querySelectorAll('.slide')];
+const deck=document.getElementById('deck'), vp=document.getElementById('viewport');
+let cur=0; const mq=matchMedia('(max-width: 760px)');
+function fit(){ if(mq.matches) return; const s=Math.min(vp.clientWidth/1280, vp.clientHeight/720)*0.965; deck.style.setProperty('--s', s>0?s:1); }
+function setMode(){ root.classList.toggle('flow-mode',mq.matches); root.classList.toggle('deck-mode',!mq.matches); fit(); }
+function go(i){
+  i=Math.max(0,Math.min(slides.length-1,i)); slides[cur].classList.remove('active'); cur=i; slides[cur].classList.add('active');
+  document.getElementById('counter').textContent=(cur+1)+' / '+slides.length;
+  document.getElementById('prog').style.width=((cur+1)/slides.length*100)+'%';
+  document.getElementById('slideName').textContent=slides[cur].dataset.name||'';
+  try{history.replaceState(null,'','#'+(cur+1))}catch(e){}
+}
+function goTo(id){ const el=document.getElementById(id); if(!el) return; if(mq.matches){el.scrollIntoView({behavior:'smooth'});return} go(slides.indexOf(el)); }
+document.getElementById('prev').onclick=()=>go(cur-1);
+document.getElementById('next').onclick=()=>go(cur+1);
+document.getElementById('fs').onclick=()=>{try{const p=document.fullscreenElement?document.exitFullscreen():root.requestFullscreen();p&&p.catch&&p.catch(()=>{})}catch(e){}};
+document.addEventListener('keydown',e=>{
+  if(mq.matches) return; const tag=e.target.tagName||'';
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') return;
+  if(['ArrowRight','PageDown'].includes(e.key)||(e.key===' '&&tag!=='BUTTON')){e.preventDefault();go(cur+1)}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(cur-1)}
+  else if(e.key==='Home')go(0); else if(e.key==='End')go(slides.length-1);
+});
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>goTo(b.dataset.go)));
+addEventListener('resize',fit); mq.addEventListener?mq.addEventListener('change',setMode):mq.addListener(setMode);
+setMode(); slides[0].classList.add('active');
+const h=parseInt((location.hash||'').slice(1),10); go(h>0?h-1:0);
+if(window.hljs) document.querySelectorAll('pre code.language-python').forEach(el=>hljs.highlightElement(el));
+
+/* ================= no-copy ================= */
+const toast=document.createElement('div'); toast.className='toast'; toast.hidden=true; toast.setAttribute('role','status'); document.body.appendChild(toast); let tt;
+const say=m=>{toast.textContent=m;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,2200)};
+const inPre=n=>n&&(n.nodeType===1?n:n.parentElement)?.closest?.('pre');
+const touches=()=>{const s=getSelection();if(!s||s.isCollapsed)return false;return inPre(s.anchorNode)||inPre(s.focusNode)||[...document.querySelectorAll('pre')].some(p=>s.containsNode(p,true))};
+['copy','cut'].forEach(ev=>document.addEventListener(ev,e=>{if(!touches())return;e.preventDefault();try{e.clipboardData.setData('text/plain','Код из презентации не копируется. Наберите его сами.')}catch(_){}say('Код не копируется: набирайте и думайте над пропусками')}));
+document.addEventListener('contextmenu',e=>{if(inPre(e.target)){e.preventDefault();say('Код не копируется')}});
+['selectstart','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(inPre(e.target))e.preventDefault()}));
+
+/* ================= quiz ================= */
+const QUIZ={torch:[
+  ['Зачем вызывать optimizer.zero_grad()?',['Обнулить градиенты, накопленные с прошлого шага','Обнулить веса модели','Очистить значение loss'],'PyTorch складывает градиенты. Без обнуления к новым добавятся старые.'],
+  ['Батч 32 картинки, 5 классов. Что вернёт model(images)?',['Тензор [32, 5] — логиты','Тензор [32] — номера классов','5 вероятностей'],'Для каждой из 32 картинок — по числу на каждый из 5 классов.'],
+  ['Нужен ли softmax в конце сети, если используем CrossEntropyLoss?',['Нет, он уже внутри loss','Да, обязательно','Только на валидации'],'CrossEntropyLoss ждёт логиты. Softmax нужен только, когда хотим показать вероятности.'],
+  ['Правильный порядок трёх строк:',['zero_grad → backward → step','step → backward → zero_grad','backward → zero_grad → step'],'Если обнулить после backward, но до step, градиенты пропадут и шаг будет нулевым.'],
+  ['Где ставим shuffle=True?',['В train_loader','В val_loader','В обоих'],'Перемешивание помогает учиться. Для проверки порядок не важен.'],
+  ['Что делает model.eval()?',['Выключает Dropout и переключает BatchNorm в режим проверки','Замораживает веса навсегда','Запускает валидацию'],'Это только режим. Сам проход по val делаем своим циклом внутри torch.no_grad().'],
+  ['Форма одной картинки для model(x):',['(1, 3, 128, 128)','(3, 128, 128)','(128, 128, 3)'],'Сеть ждёт батч: добавляем ось через .unsqueeze(0).'],
+  ['Когда используем test?',['Один раз в самом конце','После каждой эпохи','Чтобы подобрать lr'],'Каждую эпоху смотрим val. Test — финальный честный экзамен.']
+]};
+function buildQuiz(el){
+  const items=QUIZ[el.dataset.quiz], slide=el.closest('.slide'), sc=slide.querySelector('[data-score]');
+  let answered=0,right=0; const upd=()=>{sc.textContent=answered<items.length?`Отвечено ${answered} из ${items.length}`:`Верно ${right} из ${items.length}`};
+  el.innerHTML='';
+  items.forEach(([text,opts,why])=>{
+    const c=document.createElement('div'); c.className='qcard';
+    const p=document.createElement('p'); p.className='q'; p.textContent=text; c.appendChild(p);
+    const b=document.createElement('div'); b.className='btns';
+    const w=document.createElement('p'); w.className='why'; w.hidden=true;
+    const order=opts.map((_,i)=>i).sort(()=>Math.random()-.5);
+    order.forEach(oi=>{
+      const btn=document.createElement('button'); btn.type='button'; btn.textContent=opts[oi];
+      btn.onclick=()=>{const ok=oi===0;answered++;if(ok)right++;c.classList.add(ok?'right':'wrong');btn.classList.add('picked');
+        b.querySelectorAll('button').forEach(x=>x.disabled=true);
+        w.innerHTML='';const v=document.createElement('span');v.className='verdict';v.textContent=ok?'Верно. ':'Нет. Правильно: '+opts[0]+'. ';w.append(v,document.createTextNode(why));w.hidden=false;upd()};
+      b.appendChild(btn);
+    });
+    c.append(b,w); el.appendChild(c);
+  });
+  upd(); slide.querySelector('[data-reset]').onclick=()=>buildQuiz(el);
+}
+document.querySelectorAll('[data-quiz]').forEach(buildQuiz);
+
+/* ================= loss chart ================= */
+(function(){
+  const svg=document.getElementById('lossChart'); if(!svg) return;
+  const tr=[1.55,1.2,0.98,0.82,0.7,0.6,0.52,0.45,0.39,0.34,0.3,0.26,0.23,0.2,0.18];
+  const va=[1.6,1.28,1.08,0.95,0.87,0.82,0.79,0.77,0.76,0.77,0.79,0.83,0.88,0.94,1.0];
+  const L=52,R=500,T=16,B=240,ymax=1.8,n=tr.length;
+  const X=i=>L+(R-L)*i/(n-1), Y=v=>B-(B-T)*v/ymax;
+  const ns='http://www.w3.org/2000/svg', add=(tag,at,txt)=>{const e=document.createElementNS(ns,tag);for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;svg.appendChild(e);return e};
+  const best=va.indexOf(Math.min(...va));
+  add('rect',{x:X(best),y:T,width:R-X(best),height:B-T,fill:'var(--bad-soft)',opacity:'.6'});
+  [0,0.5,1,1.5].forEach(v=>{add('line',{x1:L,x2:R,y1:Y(v),y2:Y(v),class:'ax'});add('text',{x:L-8,y:Y(v)+4,'text-anchor':'end'},v.toFixed(1))});
+  [1,5,10,15].forEach(e=>add('text',{x:X(e-1),y:B+18,'text-anchor':'middle'},e));
+  add('text',{x:(L+R)/2,y:B+36,'text-anchor':'middle'},'эпоха');
+  const path=a=>a.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+  add('path',{d:path(tr),fill:'none',stroke:'var(--accent)','stroke-width':3,'stroke-linejoin':'round'});
+  add('path',{d:path(va),fill:'none',stroke:'var(--amber)','stroke-width':3,'stroke-linejoin':'round'});
+  add('line',{x1:X(best),x2:X(best),y1:T,y2:B,stroke:'var(--muted)','stroke-dasharray':'5 4'});
+  add('circle',{cx:X(best),cy:Y(va[best]),r:5.5,fill:'var(--amber)'});
+  add('text',{x:X(best)+8,y:T+14},'лучшая эпоха: '+(best+1));
+  add('text',{x:R-4,y:T+32,'text-anchor':'end',style:'fill:var(--bad)'},'переобучение →');
+  add('text',{x:X(n-1)-4,y:Y(tr[n-1])-8,'text-anchor':'end',style:'fill:var(--accent)'},'train');
+  add('text',{x:X(n-1)-4,y:Y(va[n-1])-8,'text-anchor':'end',style:'fill:var(--amber)'},'val');
+})();
+
+/* ================= pictures ================= */
+function rng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};
+let OBJ, BGS=[];
+function makeObject(){
+  const c=mk(240,240),g=c.getContext('2d');
+  g.fillStyle='#d4d9df';g.beginPath();g.ellipse(112,202,94,17,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#b8bec6';g.beginPath();g.ellipse(112,198,62,9,0,0,Math.PI*2);g.fill();
+  g.strokeStyle='#d8621a';g.lineWidth=15;g.beginPath();g.ellipse(160,124,32,34,0,-Math.PI/2,Math.PI/2);g.stroke();
+  const grd=g.createLinearGradient(52,0,172,0);grd.addColorStop(0,'#f59a3a');grd.addColorStop(.7,'#ef8424');grd.addColorStop(1,'#cf6415');
+  g.fillStyle=grd;g.beginPath();g.moveTo(50,72);g.lineTo(174,72);g.lineTo(160,186);g.quadraticCurveTo(112,204,64,186);g.closePath();g.fill();
+  g.fillStyle='#b9530f';g.beginPath();g.ellipse(112,72,62,12,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#5a2c0c';g.beginPath();g.ellipse(112,74,52,8,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#fff';g.font='700 38px Unbounded, "Golos Text", sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('ML',108,132);
+  g.strokeStyle='rgba(140,150,160,.85)';g.lineWidth=5;g.lineCap='round';
+  for(const x of [88,114,140]){g.beginPath();g.moveTo(x,56);g.bezierCurveTo(x-14,42,x+14,28,x,8);g.stroke()}
+  return c;
+}
+function sky(g,W,H,groundY,seed){
+  const r=rng(seed),gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#3f79c9');gr.addColorStop(1,'#cfe3f4');g.fillStyle=gr;g.fillRect(0,0,W,H);
+  for(let k=0;k<4;k++){const cx=r()*W,cy=30+r()*groundY*.5;g.fillStyle='rgba(255,255,255,.85)';for(let j=0;j<7;j++){g.beginPath();g.arc(cx+(r()-.5)*100,cy+(r()-.5)*24,16+r()*22,0,7);g.fill()}}
+  g.fillStyle='#5f7f4a';g.beginPath();g.moveTo(0,H);for(let x=0;x<=W;x+=20)g.lineTo(x,groundY-Math.sin(x/60)*14-r()*6);g.lineTo(W,H);g.fill();
+}
+function makeBgs(){
+  const S=480,a=mk(S,S),g=a.getContext('2d'),r=rng(13);
+  g.fillStyle='#8b5a32';g.fillRect(0,0,S,S);
+  for(let k=0;k<55;k++){g.strokeStyle=`rgba(${50+r()*50|0},${28+r()*22|0},12,${.18+r()*.35})`;g.lineWidth=1+r()*5;const y0=r()*S;g.beginPath();g.moveTo(0,y0);for(let x=0;x<=S;x+=24)g.lineTo(x,y0+Math.sin(x/80+k)*7);g.stroke()}
+  const b=mk(S,S);sky(b.getContext('2d'),S,S,S-60,990);
+  return [a,b];
+}
+const baseCache={};
+function getBase(bg,W){const k=bg+'_'+W;if(baseCache[k])return baseCache[k];const c=mk(W,W),g=c.getContext('2d');g.drawImage(BGS[bg],0,0,W,W);const s=W*.62;g.drawImage(OBJ,(W-s)/2,(W-s)/2+W*.04,s,s);return baseCache[k]=c}
+function pixels(cv,fn){const g=cv.getContext('2d'),d=g.getImageData(0,0,cv.width,cv.height),a=d.data;for(let i=0;i<a.length;i+=4){const o=fn(a[i],a[i+1],a[i+2]);a[i]=o[0];a[i+1]=o[1];a[i+2]=o[2]}g.putImageData(d,0,0)}
+const cl=v=>v<0?0:v>255?255:v;
+function renderAug(cv,p){
+  const W=cv.width,g=cv.getContext('2d'),base=getBase(p.bg||0,W);
+  g.fillStyle='#000';g.fillRect(0,0,W,W);
+  g.save();g.translate(W/2,W/2);g.rotate(-(p.angle||0)*Math.PI/180);const k=p.scale||1;g.scale(k*(p.flipH?-1:1),k);g.drawImage(base,-W/2,-W/2,W,W);g.restore();
+  if(p.bright) pixels(cv,(r,gg,b)=>[cl(r*p.bright),cl(gg*p.bright),cl(b*p.bright)]);
+  if(p.gray) pixels(cv,(r,gg,b)=>{const y=.299*r+.587*gg+.114*b;return[y,y,y]});
+}
+let TALL;
+function makeTall(){const W=360,H=480,c=mk(W,H),g=c.getContext('2d');sky(g,W,H,H-70,77);const s=200;g.drawImage(OBJ,(W-s)/2,310-s/2,s,s);return c}
+function renderTall(cv,mode){
+  const g=cv.getContext('2d');
+  if(mode==='full'){g.drawImage(TALL,0,0,cv.width,cv.height);const k=cv.width/360;g.lineWidth=4*k;g.setLineDash([12*k,8*k]);
+    g.strokeStyle='#E5483E';g.strokeRect(3*k,3*k,354*k,354*k);g.strokeStyle='#2FBF71';g.strokeRect(6*k,63*k,348*k,354*k);g.setLineDash([])}
+  else{const y=mode==='top'?0:60;g.drawImage(TALL,0,y,360,360,0,0,cv.width,cv.height)}
+}
+function drawAll(){
+  OBJ=makeObject(); BGS=makeBgs(); TALL=makeTall();
+  document.querySelectorAll('canvas[data-aug]').forEach(c=>{try{renderAug(c,JSON.parse(c.dataset.aug))}catch(e){}});
+  document.querySelectorAll('canvas[data-tall]').forEach(c=>renderTall(c,c.dataset.tall));
+}
+const fr=(document.fonts&&document.fonts.load)?document.fonts.load('700 38px Unbounded').catch(()=>{}):Promise.resolve();
+Promise.race([fr,new Promise(r=>setTimeout(r,1500))]).then(drawAll);
+})();
+</script>
+
+</body>
+</html>
